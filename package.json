@@ -1,0 +1,23 @@
+{
+  "name": "scanup-node",
+  "version": "0.1.0",
+  "description": "ScanUp check executor node: polls the ScanUp API for check jobs, runs them, reports results",
+  "private": true,
+  "license": "UNLICENSED",
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/main.js",
+    "dev": "tsc && node dist/main.js",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "typecheck": "tsc --noEmit"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "devDependencies": {
+    "@types/node": "^26.0.0",
+    "prettier": "^3.4.2",
+    "typescript": "^5.9.3"
+  }
+}
