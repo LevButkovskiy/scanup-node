@@ -1,29 +1,12 @@
 import { ApiClient, type DispatchedJob } from "./api-client";
 import { parseHttpPingPayload, runHttpPing } from "./checks/http-ping";
 import { loadConfig } from "./config";
+import { errorMessage } from "./lib/error-message";
+import { log } from "./lib/log";
+import { sleep } from "./lib/sleep";
+import { readPackageVersion } from "./lib/version";
 
-const NODE_VERSION = "0.1.0";
 const CAPABILITIES = [{ type: "http-ping", schemaVersions: ["v1"] }];
-
-function log(message: string): void {
-  console.log(`[${new Date().toISOString()}] ${message}`);
-}
-
-function errorMessage(error: unknown): string {
-  if (error instanceof Error) {
-    // AbortSignal.timeout даёт DOMException TimeoutError — превращаем в
-    // человекочитаемую причину для истории проверок
-    if (error.name === "TimeoutError") return "Request timed out";
-    return error.cause instanceof Error
-      ? `${error.message}: ${error.cause.message}`
-      : error.message;
-  }
-  return String(error);
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
 
 async function executeJob(api: ApiClient, job: DispatchedJob): Promise<void> {
   if (job.jobType !== "http-ping") {
@@ -57,9 +40,10 @@ async function executeJob(api: ApiClient, job: DispatchedJob): Promise<void> {
 async function main(): Promise<void> {
   const config = loadConfig();
   const api = new ApiClient(config);
+  const version = readPackageVersion();
 
   log(
-    `scanup-node v${NODE_VERSION} starting` +
+    `scanup-node v${version} starting` +
       (config.location ? ` (location: ${config.location})` : ""),
   );
 
@@ -75,10 +59,7 @@ async function main(): Promise<void> {
   // backend восстановит картину на следующем успешном heartbeat'е.
   const sendHeartbeat = async (): Promise<void> => {
     try {
-      await api.heartbeat({
-        version: NODE_VERSION,
-        capabilities: CAPABILITIES,
-      });
+      await api.heartbeat({ version, capabilities: CAPABILITIES });
     } catch (error) {
       log(`heartbeat failed: ${errorMessage(error)}`);
     }

@@ -49,6 +49,4 @@ docker run -e SCANUP_API_URL=... -e SCANUP_NODE_TOKEN=... scanup-node
 Интервалы по умолчанию согласованы с rate-лимитами backend'а
 (30/мин на heartbeat, 60/мин на `jobs/next`).
 
-Токен передаётся заголовком `Authorization: Bearer <token>`. Реальные
-значения токенов и адресов никогда не коммитятся в этот репозиторий —
-только через переменные окружения.
+Токен передаётся заголовком `Authorization: Bearer <token>`.
