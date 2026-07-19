@@ -1,7 +1,7 @@
 # scanup-node
 
 Нода-исполнитель проверок [ScanUp](https://scanup.ru): опрашивает API ScanUp,
-выполняет выданные проверки (сейчас — `http-ping`) и отправляет результаты
+выполняет выданные проверки (сейчас — `http_ping`) и отправляет результаты
 обратно.
 
 ## Как это работает
@@ -11,7 +11,7 @@
    проверок.
 2. В цикле опрашивает `GET /nodes/jobs/next`; если задач нет — пауза
    `POLL_INTERVAL_MS`.
-3. Для `http-ping` выполняет HTTP-запрос к целевому URL с таймаутом из
+3. Для `http_ping` выполняет HTTP-запрос к целевому URL с таймаутом из
    payload и замеряет время ответа.
 4. Отправляет результат в `POST /nodes/jobs/{jobId}/result`
    (`{ status: 'done', result: { statusCode, responseTimeMs } }` или

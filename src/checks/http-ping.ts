@@ -1,4 +1,4 @@
-// Проверка http-ping (schemaVersion v1). Нода сообщает только факты —
+// Проверка http_ping (schemaVersion v1). Нода сообщает только факты —
 // statusCode и время ответа, либо сетевую ошибку/таймаут. Решение
 // up/down принимает backend. Прочие поля wire-payload'а (probeId,
 // expectedStatusCodes) — внутренние детали backend'а: нода их не
@@ -20,7 +20,7 @@ export function parseHttpPingPayload(
 ): HttpPingPayloadV1 {
   const url = payload.url;
   if (typeof url !== "string" || url.length === 0) {
-    throw new Error("http-ping payload: url is missing");
+    throw new Error("http_ping payload: url is missing");
   }
 
   const timeoutMs =
