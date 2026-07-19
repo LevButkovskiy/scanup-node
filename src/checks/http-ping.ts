@@ -1,15 +1,13 @@
 // Проверка http-ping (schemaVersion v1). Нода сообщает только факты —
 // statusCode и время ответа, либо сетевую ошибку/таймаут. Решение
-// up/down принимает backend (в т.ч. по expectedStatusCodes из payload —
-// здесь они не интерпретируются). Поле probeId в payload нода тоже не
-// интерпретирует — это внутренняя деталь backend'а.
+// up/down принимает backend. Прочие поля wire-payload'а (probeId,
+// expectedStatusCodes) — внутренние детали backend'а: нода их не
+// интерпретирует, поэтому их нет в этом типе.
 
 export interface HttpPingPayloadV1 {
-  probeId?: string;
   url: string;
   method?: "GET" | "HEAD";
   timeoutMs: number;
-  expectedStatusCodes?: number[];
 }
 
 export interface HttpPingResult {
