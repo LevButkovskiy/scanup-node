@@ -6,10 +6,10 @@ import { log } from "./lib/log";
 import { sleep } from "./lib/sleep";
 import { readPackageVersion } from "./lib/version";
 
-const CAPABILITIES = [{ type: "http-ping", schemaVersions: ["v1"] }];
+const CAPABILITIES = [{ type: "http_ping", schemaVersions: ["v1"] }];
 
 async function executeJob(api: ApiClient, job: DispatchedJob): Promise<void> {
-  if (job.jobType !== "http-ping") {
+  if (job.jobType !== "http_ping") {
     await api.submitResult(job.jobId, {
       status: "failed",
       error: `Unsupported jobType: ${job.jobType}`,
