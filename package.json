@@ -1,6 +1,6 @@
 {
   "name": "scanup-node",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "ScanUp check executor node: polls the ScanUp API for check jobs, runs them, reports results",
   "private": true,
   "license": "AGPL-3.0-only",
