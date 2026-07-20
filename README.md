@@ -63,6 +63,23 @@ docker run -e SCANUP_API_URL=... -e SCANUP_NODE_TOKEN=... scanup-node
 
 Токен передаётся заголовком `Authorization: Bearer <token>`.
 
+## Релизы
+
+Версия в `package.json`, git-тег и Docker-тег синхронизируются автоматически
+через [semantic-release](https://semantic-release.gitbook.io/): при пуше в
+`main` он разбирает историю коммитов по
+[Conventional Commits](https://www.conventionalcommits.org/), сам решает
+patch/minor/major, коммитит версию и `CHANGELOG.md`, создаёт git tag и GitHub
+Release. Тег вида `vX.Y.Z` запускает публикацию Docker-образа с этой же
+версией (см. `## Docker` выше) — вручную версию нигде проставлять не нужно.
+
+Сообщения коммитов обязаны следовать Conventional Commits
+(`fix: ...`, `feat: ...`, `feat!: ...` / `BREAKING CHANGE: ...` для мажора и
+т.д.) — иначе semantic-release не поймёт, какой релиз делать. Это проверяется
+локально хуком husky (`commit-msg`, ставится сам после `npm ci` через
+`prepare`) и повторно в CI (`commitlint` на каждый PR) — локальная проверка
+обходима (`--no-verify`, PR из веба), CI-проверка нет.
+
 ## Лицензия
 
 [AGPL-3.0](./LICENSE). Модификации, которые вы распространяете или
