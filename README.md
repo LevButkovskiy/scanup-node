@@ -22,25 +22,80 @@ backend — нода сообщает только факты.
 
 ## Запуск
 
+Самый простой способ поднять ноду — Docker, ничего собирать не нужно.
+
+### Docker
+
+```bash
+docker run -d \
+  --name scanup-node \
+  --restart unless-stopped \
+  -e SCANUP_API_URL=https://api.scanup.ru \
+  -e SCANUP_NODE_TOKEN=<your-token> \
+  ghcr.io/levbutkovskiy/scanup-node:latest
+```
+
+Проверить, что нода работает:
+
+```bash
+docker logs -f scanup-node
+```
+
+Остановить и удалить:
+
+```bash
+docker stop scanup-node && docker rm scanup-node
+```
+
+### Docker Compose
+
+В репозитории есть готовый `docker-compose.yml`. Скачайте его и `.env.example`
+рядом, заполните `.env`:
+
+```bash
+curl -O https://raw.githubusercontent.com/LevButkovskiy/scanup-node/main/docker-compose.yml
+curl -O https://raw.githubusercontent.com/LevButkovskiy/scanup-node/main/.env.example
+cp .env.example .env
+# отредактируйте .env: впишите SCANUP_NODE_TOKEN
+```
+
+`docker-compose.yml`:
+
+```yaml
+services:
+  scanup-node:
+    image: ghcr.io/levbutkovskiy/scanup-node:latest
+    restart: unless-stopped
+    environment:
+      SCANUP_API_URL: ${SCANUP_API_URL:-https://api.scanup.ru}
+      SCANUP_NODE_TOKEN: ${SCANUP_NODE_TOKEN}
+      NODE_LOCATION: ${NODE_LOCATION:-}
+```
+
+Запуск и остановка:
+
+```bash
+docker compose up -d
+docker compose logs -f
+docker compose down
+```
+
+Обновление на новую версию образа:
+
+```bash
+docker compose pull
+docker compose up -d
+```
+
+### Из исходников
+
 ```bash
 npm ci
 npm run build
 SCANUP_API_URL=... SCANUP_NODE_TOKEN=... npm start
 ```
 
-### Docker
-
-Готовый образ публикуется в GitHub Container Registry при пуше в `main`
-(тег `edge`) и при релизном теге `vX.Y.Z` (теги `X.Y.Z`, `X.Y`, `latest`):
-
-```bash
-docker run \
-  -e SCANUP_API_URL=... \
-  -e SCANUP_NODE_TOKEN=... \
-  ghcr.io/levbutkovskiy/scanup-node:latest
-```
-
-Локальная сборка:
+Локальная сборка образа:
 
 ```bash
 docker build -t scanup-node .

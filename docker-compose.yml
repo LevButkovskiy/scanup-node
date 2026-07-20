@@ -1,0 +1,8 @@
+services:
+  scanup-node:
+    image: ghcr.io/levbutkovskiy/scanup-node:latest
+    restart: unless-stopped
+    environment:
+      SCANUP_API_URL: ${SCANUP_API_URL:-https://api.scanup.ru}
+      SCANUP_NODE_TOKEN: ${SCANUP_NODE_TOKEN}
+      NODE_LOCATION: ${NODE_LOCATION:-}
