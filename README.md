@@ -22,13 +22,80 @@ backend — нода сообщает только факты.
 
 ## Запуск
 
+Самый простой способ поднять ноду — Docker, ничего собирать не нужно.
+
+### Docker
+
+```bash
+docker run -d \
+  --name scanup-node \
+  --restart unless-stopped \
+  -e SCANUP_API_URL=https://api.scanup.ru \
+  -e SCANUP_NODE_TOKEN=<your-token> \
+  ghcr.io/levbutkovskiy/scanup-node:latest
+```
+
+Проверить, что нода работает:
+
+```bash
+docker logs -f scanup-node
+```
+
+Остановить и удалить:
+
+```bash
+docker stop scanup-node && docker rm scanup-node
+```
+
+### Docker Compose
+
+В репозитории есть готовый `docker-compose.yml`. Скачайте его и `.env.example`
+рядом, заполните `.env`:
+
+```bash
+curl -O https://raw.githubusercontent.com/LevButkovskiy/scanup-node/main/docker-compose.yml
+curl -O https://raw.githubusercontent.com/LevButkovskiy/scanup-node/main/.env.example
+cp .env.example .env
+# отредактируйте .env: впишите SCANUP_NODE_TOKEN
+```
+
+`docker-compose.yml`:
+
+```yaml
+services:
+  scanup-node:
+    image: ghcr.io/levbutkovskiy/scanup-node:latest
+    restart: unless-stopped
+    environment:
+      SCANUP_API_URL: ${SCANUP_API_URL:-https://api.scanup.ru}
+      SCANUP_NODE_TOKEN: ${SCANUP_NODE_TOKEN}
+      NODE_LOCATION: ${NODE_LOCATION:-}
+```
+
+Запуск и остановка:
+
+```bash
+docker compose up -d
+docker compose logs -f
+docker compose down
+```
+
+Обновление на новую версию образа:
+
+```bash
+docker compose pull
+docker compose up -d
+```
+
+### Из исходников
+
 ```bash
 npm ci
 npm run build
 SCANUP_API_URL=... SCANUP_NODE_TOKEN=... npm start
 ```
 
-### Docker
+Локальная сборка образа:
 
 ```bash
 docker build -t scanup-node .
@@ -50,3 +117,28 @@ docker run -e SCANUP_API_URL=... -e SCANUP_NODE_TOKEN=... scanup-node
 (30/мин на heartbeat, 60/мин на `jobs/next`).
 
 Токен передаётся заголовком `Authorization: Bearer <token>`.
+
+## Релизы
+
+Версия в `package.json`, git-тег и Docker-тег синхронизируются автоматически
+через [semantic-release](https://semantic-release.gitbook.io/): при пуше в
+`main` он разбирает историю коммитов по
+[Conventional Commits](https://www.conventionalcommits.org/), сам решает
+patch/minor/major, коммитит версию и `CHANGELOG.md`, создаёт git tag и GitHub
+Release. Тег вида `vX.Y.Z` запускает публикацию Docker-образа с этой же
+версией (см. `## Docker` выше) — вручную версию нигде проставлять не нужно.
+
+Сообщения коммитов обязаны следовать Conventional Commits
+(`fix: ...`, `feat: ...`, `feat!: ...` / `BREAKING CHANGE: ...` для мажора и
+т.д.) — иначе semantic-release не поймёт, какой релиз делать. Это проверяется
+локально хуком husky (`commit-msg`, ставится сам после `npm ci` через
+`prepare`) и повторно в CI (`commitlint` на каждый PR) — локальная проверка
+обходима (`--no-verify`, PR из веба), CI-проверка нет.
+
+## Лицензия
+
+[AGPL-3.0](./LICENSE). Модификации, которые вы распространяете или
+предоставляете как сервис третьим лицам, обязаны публиковаться под той же
+лицензией. Для использования на условиях, несовместимых с AGPL (закрытая
+модификация, встраивание в проприетарный сервис), обращайтесь за
+коммерческой лицензией к ScanUp.
