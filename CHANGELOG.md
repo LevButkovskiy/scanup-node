@@ -1,3 +1,10 @@
+## [1.0.1](https://github.com/LevButkovskiy/scanup-node/compare/v1.0.0...v1.0.1) (2026-07-20)
+
+
+### Bug Fixes
+
+* push release commit/tag with a PAT so it triggers docker-publish ([b2ac58f](https://github.com/LevButkovskiy/scanup-node/commit/b2ac58fcf9000f15b74f99254394ab68690eb0c9))
+
 # 1.0.0 (2026-07-20)
 
 
