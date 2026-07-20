@@ -30,6 +30,18 @@ SCANUP_API_URL=... SCANUP_NODE_TOKEN=... npm start
 
 ### Docker
 
+Готовый образ публикуется в GitHub Container Registry при пуше в `main`
+(тег `edge`) и при релизном теге `vX.Y.Z` (теги `X.Y.Z`, `X.Y`, `latest`):
+
+```bash
+docker run \
+  -e SCANUP_API_URL=... \
+  -e SCANUP_NODE_TOKEN=... \
+  ghcr.io/levbutkovskiy/scanup-node:latest
+```
+
+Локальная сборка:
+
 ```bash
 docker build -t scanup-node .
 docker run -e SCANUP_API_URL=... -e SCANUP_NODE_TOKEN=... scanup-node
@@ -50,3 +62,11 @@ docker run -e SCANUP_API_URL=... -e SCANUP_NODE_TOKEN=... scanup-node
 (30/мин на heartbeat, 60/мин на `jobs/next`).
 
 Токен передаётся заголовком `Authorization: Bearer <token>`.
+
+## Лицензия
+
+[AGPL-3.0](./LICENSE). Модификации, которые вы распространяете или
+предоставляете как сервис третьим лицам, обязаны публиковаться под той же
+лицензией. Для использования на условиях, несовместимых с AGPL (закрытая
+модификация, встраивание в проприетарный сервис), обращайтесь за
+коммерческой лицензией к ScanUp.
