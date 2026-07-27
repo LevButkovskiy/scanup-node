@@ -1,3 +1,10 @@
+# [1.1.0](https://github.com/LevButkovskiy/scanup-node/compare/v1.0.1...v1.1.0) (2026-07-27)
+
+
+### Features
+
+* nodeTokenRejectedError ([9835c9b](https://github.com/LevButkovskiy/scanup-node/commit/9835c9b6b05ccfe2d54e91c8f9dcf28dd75a3d77))
+
 ## [1.0.1](https://github.com/LevButkovskiy/scanup-node/compare/v1.0.0...v1.0.1) (2026-07-20)
 
 
