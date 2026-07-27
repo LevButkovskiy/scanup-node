@@ -28,6 +28,13 @@ export interface SubmitResultBody {
   error?: string;
 }
 
+export class NodeTokenRejectedError extends Error {
+  constructor() {
+    super("node token rejected (revoked or invalid)");
+    this.name = "NodeTokenRejectedError";
+  }
+}
+
 export class ApiClient {
   constructor(private readonly config: NodeConfig) {}
 
@@ -66,6 +73,9 @@ export class ApiClient {
       signal: AbortSignal.timeout(30_000),
     });
 
+    if (response.status === 401) {
+      throw new NodeTokenRejectedError();
+    }
     if (!response.ok) {
       throw new Error(`${method} ${path} failed: HTTP ${response.status}`);
     }

@@ -1,4 +1,8 @@
-import { ApiClient, type DispatchedJob } from "./api-client";
+import {
+  ApiClient,
+  NodeTokenRejectedError,
+  type DispatchedJob,
+} from "./api-client";
 import { parseHttpPingPayload, runHttpPing } from "./checks/http-ping";
 import { loadConfig } from "./config";
 import { errorMessage } from "./lib/error-message";
@@ -31,6 +35,7 @@ async function executeJob(api: ApiClient, job: DispatchedJob): Promise<void> {
       `job ${job.jobId}: done (status ${result.statusCode}, ${result.responseTimeMs}ms)`,
     );
   } catch (error) {
+    if (error instanceof NodeTokenRejectedError) throw error;
     const message = errorMessage(error);
     await api.submitResult(job.jobId, { status: "failed", error: message });
     log(`job ${job.jobId}: failed (${message})`);
@@ -55,12 +60,21 @@ async function main(): Promise<void> {
   process.on("SIGINT", stop);
   process.on("SIGTERM", stop);
 
+  const stopRevoked = (): void => {
+    log("node token revoked — shutting down");
+    running = false;
+  };
+
   // Heartbeat — отдельный самопланирующийся цикл, ошибки не фатальны:
   // backend восстановит картину на следующем успешном heartbeat'е.
   const sendHeartbeat = async (): Promise<void> => {
     try {
       await api.heartbeat({ version, capabilities: CAPABILITIES });
     } catch (error) {
+      if (error instanceof NodeTokenRejectedError) {
+        stopRevoked();
+        return;
+      }
       log(`heartbeat failed: ${errorMessage(error)}`);
     }
   };
@@ -81,6 +95,10 @@ async function main(): Promise<void> {
       }
       await executeJob(api, job);
     } catch (error) {
+      if (error instanceof NodeTokenRejectedError) {
+        stopRevoked();
+        break;
+      }
       log(`poll failed: ${errorMessage(error)}`);
       await sleep(config.errorBackoffMs);
     }
