@@ -16,10 +16,10 @@ import { readPackageVersion } from "./lib/version";
 
 const CAPABILITIES = [
   { type: "http_ping", schemaVersions: ["v1"] },
-  { type: "dns.v1", schemaVersions: ["v1"] },
-  { type: "whois.v1", schemaVersions: ["v1"] },
-  { type: "ssl.v1", schemaVersions: ["v1"] },
-  { type: "ping.v1", schemaVersions: ["v1"] },
+  { type: "dns", schemaVersions: ["v1"] },
+  { type: "whois", schemaVersions: ["v1"] },
+  { type: "ssl", schemaVersions: ["v1"] },
+  { type: "ping", schemaVersions: ["v1"] },
 ];
 
 async function runJob(
@@ -34,13 +34,13 @@ async function runJob(
         responseTimeMs: result.responseTimeMs,
       };
     }
-    case "dns.v1":
+    case "dns":
       return runDnsLookup(parseDnsLookupPayload(payload));
-    case "whois.v1":
+    case "whois":
       return runWhoisLookup(parseWhoisLookupPayload(payload));
-    case "ssl.v1":
+    case "ssl":
       return runSslCheck(parseSslCheckPayload(payload));
-    case "ping.v1":
+    case "ping":
       return runPing(parsePingPayload(payload));
     default:
       throw new Error(`Unsupported jobType: ${jobType}`);
