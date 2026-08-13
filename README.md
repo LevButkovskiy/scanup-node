@@ -1,8 +1,8 @@
 # scanup-node
 
 Нода-исполнитель проверок [ScanUp](https://scanup.ru): опрашивает API ScanUp,
-выполняет выданные проверки (сейчас — `http_ping`) и отправляет результаты
-обратно.
+выполняет выданные проверки (`http_ping`, `dns.v1`, `whois.v1`, `ssl.v1`,
+`ping.v1`) и отправляет результаты обратно.
 
 ## Как это работает
 
@@ -11,11 +11,13 @@
    проверок.
 2. В цикле опрашивает `GET /nodes/jobs/next`; если задач нет — пауза
    `POLL_INTERVAL_MS`.
-3. Для `http_ping` выполняет HTTP-запрос к целевому URL с таймаутом из
-   payload и замеряет время ответа.
+3. Выполняет проверку по типу задачи: `http_ping` — HTTP-запрос к целевому
+   URL с таймаутом из payload; `dns.v1` — DNS-запрос через указанный
+   nameserver; `whois.v1` — WHOIS-запрос к домену; `ssl.v1` — проверка
+   сертификата по TLS-хендшейку; `ping.v1` — ICMP ping через системный `ping`
+   (в образе — `iputils`).
 4. Отправляет результат в `POST /nodes/jobs/{jobId}/result`
-   (`{ status: 'done', result: { statusCode, responseTimeMs } }` или
-   `{ status: 'failed', error }`).
+   (`{ status: 'done', result: {...} }` или `{ status: 'failed', error }`).
 
 Нода не хранит состояния и не имеет своей БД. Решение up/down принимает
 backend — нода сообщает только факты.
@@ -43,10 +45,18 @@ backend — нода сообщает только факты.
 docker run -d \
   --name scanup-node \
   --restart unless-stopped \
+  --cap-drop=NET_RAW \
   -e SCANUP_API_URL=https://api.scanup.ru \
   -e SCANUP_NODE_TOKEN=<your-token> \
   ghcr.io/levbutkovskiy/scanup-node:latest
 ```
+
+`--cap-drop=NET_RAW` забирает капабилити, которую Docker выдаёт контейнерам
+по умолчанию. Ноде она не нужна: `ping.v1` работает через непривилегированный
+ICMP ping-socket, который Docker разрешает своими дефолтами начиная с 20.10.
+А raw-сокет — это возможность спуфить исходный IP и снифать трафик на
+интерфейсе контейнера, поэтому лучше её не иметь: ноду разворачивают третьи
+лица на своей сети.
 
 Проверить, что нода работает:
 
@@ -79,6 +89,8 @@ services:
   scanup-node:
     image: ghcr.io/levbutkovskiy/scanup-node:latest
     restart: unless-stopped
+    cap_drop:
+      - NET_RAW
     environment:
       SCANUP_API_URL: ${SCANUP_API_URL:-https://api.scanup.ru}
       SCANUP_NODE_TOKEN: ${SCANUP_NODE_TOKEN}

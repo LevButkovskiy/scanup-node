@@ -3,37 +3,58 @@ import {
   NodeTokenRejectedError,
   type DispatchedJob,
 } from "./api-client";
+import { parseDnsLookupPayload, runDnsLookup } from "./checks/dns-lookup";
 import { parseHttpPingPayload, runHttpPing } from "./checks/http-ping";
+import { parsePingPayload, runPing } from "./checks/ping";
+import { parseSslCheckPayload, runSslCheck } from "./checks/ssl-check";
+import { parseWhoisLookupPayload, runWhoisLookup } from "./checks/whois-lookup";
 import { loadConfig } from "./config";
 import { errorMessage } from "./lib/error-message";
 import { log } from "./lib/log";
 import { sleep } from "./lib/sleep";
 import { readPackageVersion } from "./lib/version";
 
-const CAPABILITIES = [{ type: "http_ping", schemaVersions: ["v1"] }];
+const CAPABILITIES = [
+  { type: "http_ping", schemaVersions: ["v1"] },
+  { type: "dns.v1", schemaVersions: ["v1"] },
+  { type: "whois.v1", schemaVersions: ["v1"] },
+  { type: "ssl.v1", schemaVersions: ["v1"] },
+  { type: "ping.v1", schemaVersions: ["v1"] },
+];
 
-async function executeJob(api: ApiClient, job: DispatchedJob): Promise<void> {
-  if (job.jobType !== "http_ping") {
-    await api.submitResult(job.jobId, {
-      status: "failed",
-      error: `Unsupported jobType: ${job.jobType}`,
-    });
-    return;
-  }
-
-  try {
-    const payload = parseHttpPingPayload(job.payload);
-    const result = await runHttpPing(payload);
-    await api.submitResult(job.jobId, {
-      status: "done",
-      result: {
+async function runJob(
+  jobType: string,
+  payload: Record<string, unknown>,
+): Promise<unknown> {
+  switch (jobType) {
+    case "http_ping": {
+      const result = await runHttpPing(parseHttpPingPayload(payload));
+      return {
         statusCode: result.statusCode,
         responseTimeMs: result.responseTimeMs,
-      },
-    });
-    log(
-      `job ${job.jobId}: done (status ${result.statusCode}, ${result.responseTimeMs}ms)`,
-    );
+      };
+    }
+    case "dns.v1":
+      return runDnsLookup(parseDnsLookupPayload(payload));
+    case "whois.v1":
+      return runWhoisLookup(parseWhoisLookupPayload(payload));
+    case "ssl.v1":
+      return runSslCheck(parseSslCheckPayload(payload));
+    case "ping.v1":
+      return runPing(parsePingPayload(payload));
+    default:
+      throw new Error(`Unsupported jobType: ${jobType}`);
+  }
+}
+
+async function executeJob(api: ApiClient, job: DispatchedJob): Promise<void> {
+  try {
+    const result = (await runJob(job.jobType, job.payload)) as Record<
+      string,
+      unknown
+    >;
+    await api.submitResult(job.jobId, { status: "done", result });
+    log(`job ${job.jobId}: done (${job.jobType})`);
   } catch (error) {
     if (error instanceof NodeTokenRejectedError) throw error;
     const message = errorMessage(error);

@@ -2,6 +2,10 @@ services:
   scanup-node:
     image: ghcr.io/levbutkovskiy/scanup-node:latest
     restart: unless-stopped
+    # ping.v1 uses unprivileged ICMP ping sockets (enabled by Docker's own
+    # defaults since 20.10), so the node never needs raw sockets.
+    cap_drop:
+      - NET_RAW
     environment:
       SCANUP_API_URL: ${SCANUP_API_URL:-https://api.scanup.ru}
       SCANUP_NODE_TOKEN: ${SCANUP_NODE_TOKEN}
