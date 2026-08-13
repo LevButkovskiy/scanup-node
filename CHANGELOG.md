@@ -1,3 +1,10 @@
+# [1.2.0](https://github.com/LevButkovskiy/scanup-node/compare/v1.1.0...v1.2.0) (2026-08-13)
+
+
+### Features
+
+* node tools ([4fb259c](https://github.com/LevButkovskiy/scanup-node/commit/4fb259c4e857d8ff7c80e739c7acaaa509c8e860))
+
 # [1.1.0](https://github.com/LevButkovskiy/scanup-node/compare/v1.0.1...v1.1.0) (2026-07-27)
 
 
