@@ -1,3 +1,10 @@
+## [1.2.1](https://github.com/LevButkovskiy/scanup-node/compare/v1.2.0...v1.2.1) (2026-08-13)
+
+
+### Bug Fixes
+
+* capabilities names ([d00f3b1](https://github.com/LevButkovskiy/scanup-node/commit/d00f3b1c4b2d897b866dc1691f539f944c81c295))
+
 # [1.2.0](https://github.com/LevButkovskiy/scanup-node/compare/v1.1.0...v1.2.0) (2026-08-13)
 
 
