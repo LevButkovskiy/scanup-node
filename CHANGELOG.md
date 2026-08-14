@@ -1,3 +1,10 @@
+# [1.3.0](https://github.com/LevButkovskiy/scanup-node/compare/v1.2.1...v1.3.0) (2026-08-14)
+
+
+### Features
+
+* node improvements ([f030e3a](https://github.com/LevButkovskiy/scanup-node/commit/f030e3a9ef2ca0ab453312555223d770ba1c3d3f))
+
 ## [1.2.1](https://github.com/LevButkovskiy/scanup-node/compare/v1.2.0...v1.2.1) (2026-08-13)
 
 
