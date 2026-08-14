@@ -1,3 +1,10 @@
+# [1.4.0](https://github.com/LevButkovskiy/scanup-node/compare/v1.3.0...v1.4.0) (2026-08-14)
+
+
+### Features
+
+* http ping authorization ([e824be8](https://github.com/LevButkovskiy/scanup-node/commit/e824be8f6f706354ad42626552a8cf0e5496ba71))
+
 # [1.3.0](https://github.com/LevButkovskiy/scanup-node/compare/v1.2.1...v1.3.0) (2026-08-14)
 
 
