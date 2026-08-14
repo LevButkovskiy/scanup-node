@@ -3,7 +3,8 @@ export interface NodeConfig {
   nodeToken: string;
   location: string | null;
   heartbeatIntervalMs: number;
-  pollIntervalMs: number;
+  jobWaitMs: number;
+  jobConcurrency: number;
   errorBackoffMs: number;
 }
 
@@ -17,7 +18,8 @@ function intFromEnv(name: string, fallback: number): number {
 }
 
 const DEFAULT_HEARTBEAT_INTERVAL_MS = 30_000; // лимит backend: 30/мин
-const DEFAULT_POLL_INTERVAL_MS = 3_000; // лимит backend: 60/мин на jobs/next
+const DEFAULT_JOB_WAIT_MS = 25_000;
+const DEFAULT_JOB_CONCURRENCY = 8;
 const DEFAULT_ERROR_BACKOFF_MS = 10_000;
 
 export function loadConfig(): NodeConfig {
@@ -35,7 +37,8 @@ export function loadConfig(): NodeConfig {
       "HEARTBEAT_INTERVAL_MS",
       DEFAULT_HEARTBEAT_INTERVAL_MS,
     ),
-    pollIntervalMs: intFromEnv("POLL_INTERVAL_MS", DEFAULT_POLL_INTERVAL_MS),
+    jobWaitMs: intFromEnv("JOB_WAIT_MS", DEFAULT_JOB_WAIT_MS),
+    jobConcurrency: intFromEnv("JOB_CONCURRENCY", DEFAULT_JOB_CONCURRENCY),
     errorBackoffMs: intFromEnv("ERROR_BACKOFF_MS", DEFAULT_ERROR_BACKOFF_MS),
   };
 }

@@ -42,10 +42,16 @@ export class ApiClient {
     await this.request("POST", "/nodes/heartbeat", body);
   }
 
-  async nextJob(): Promise<DispatchedJob | null> {
+  async nextJob(
+    waitMs: number,
+    signal?: AbortSignal,
+  ): Promise<DispatchedJob | null> {
     const response = await this.request<{ job: DispatchedJob | null }>(
       "GET",
-      "/nodes/jobs/next",
+      `/nodes/jobs/next?wait=${waitMs}`,
+      undefined,
+      waitMs + 10_000,
+      signal,
     );
     return response.job;
   }
@@ -62,7 +68,10 @@ export class ApiClient {
     method: "GET" | "POST",
     path: string,
     body?: unknown,
+    timeoutMs = 30_000,
+    signal?: AbortSignal,
   ): Promise<T> {
+    const timeoutSignal = AbortSignal.timeout(timeoutMs);
     const response = await fetch(`${this.config.apiUrl}${path}`, {
       method,
       headers: {
@@ -70,7 +79,7 @@ export class ApiClient {
         ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
       },
       body: body !== undefined ? JSON.stringify(body) : undefined,
-      signal: AbortSignal.timeout(30_000),
+      signal: signal ? AbortSignal.any([timeoutSignal, signal]) : timeoutSignal,
     });
 
     if (response.status === 401) {
