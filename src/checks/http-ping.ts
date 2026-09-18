@@ -1,9 +1,33 @@
+import { sleep } from "../lib/sleep";
 import type {
   HttpPingPayloadV1,
   HttpPingResult,
 } from "../types/http-ping.types";
 
 const MAX_REDIRECTS = 5;
+const DNS_RETRY_DELAY_MS = 200;
+const TEMPORARY_DNS_FAILURE_CODE = "EAI_AGAIN";
+
+function isTemporaryDnsFailure(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    error.cause instanceof Error &&
+    (error.cause as NodeJS.ErrnoException).code === TEMPORARY_DNS_FAILURE_CODE
+  );
+}
+
+async function fetchWithDnsRetry(
+  url: URL,
+  init: RequestInit,
+): Promise<Response> {
+  try {
+    return await fetch(url, init);
+  } catch (error) {
+    if (!isTemporaryDnsFailure(error) || init.signal?.aborted) throw error;
+    await sleep(DNS_RETRY_DELAY_MS);
+    return fetch(url, init);
+  }
+}
 
 export function parseHttpPingPayload(
   payload: Record<string, unknown>,
@@ -51,7 +75,7 @@ export async function runHttpPing(
   let redirectCount = 0;
 
   for (;;) {
-    response = await fetch(currentUrl, {
+    response = await fetchWithDnsRetry(currentUrl, {
       method: payload.method ?? "GET",
       headers,
       redirect: "manual",
