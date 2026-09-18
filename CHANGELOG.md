@@ -1,3 +1,10 @@
+# [1.5.0](https://github.com/LevButkovskiy/scanup-node/compare/v1.4.0...v1.5.0) (2026-09-18)
+
+
+### Features
+
+* retry on EAI_AGAIN ([1815f08](https://github.com/LevButkovskiy/scanup-node/commit/1815f08196c7950727feee5007facc511718dd18))
+
 # [1.4.0](https://github.com/LevButkovskiy/scanup-node/compare/v1.3.0...v1.4.0) (2026-08-14)
 
 
