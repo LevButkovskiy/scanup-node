@@ -1,3 +1,10 @@
+## [1.5.1](https://github.com/LevButkovskiy/scanup-node/compare/v1.5.0...v1.5.1) (2026-10-23)
+
+
+### Bug Fixes
+
+* **deps:** require Node >= 24.22.1 ([0b9ae6b](https://github.com/LevButkovskiy/scanup-node/commit/0b9ae6b6df9d67de532e4e53c6701f1b0ecae522))
+
 # [1.5.0](https://github.com/LevButkovskiy/scanup-node/compare/v1.4.0...v1.5.0) (2026-09-18)
 
 
