@@ -1,3 +1,10 @@
+## [1.6.2](https://github.com/LevButkovskiy/scanup-node/compare/v1.6.1...v1.6.2) (2026-11-04)
+
+
+### Bug Fixes
+
+* **node:** stop reporting failed checks when result submission fails ([#8](https://github.com/LevButkovskiy/scanup-node/issues/8)) ([1e16d95](https://github.com/LevButkovskiy/scanup-node/commit/1e16d953fa4a2343e286fb5911526815b96e66e3))
+
 ## [1.6.1](https://github.com/LevButkovskiy/scanup-node/compare/v1.6.0...v1.6.1) (2026-11-04)
 
 
