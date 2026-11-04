@@ -1,6 +1,6 @@
 {
   "name": "scanup-node",
-  "version": "1.6.0",
+  "version": "1.6.1",
   "description": "ScanUp check executor node: polls the ScanUp API for check jobs, runs them, reports results",
   "private": true,
   "license": "AGPL-3.0-only",
@@ -9,9 +9,9 @@
     "build": "tsc",
     "start": "node dist/main.js",
     "dev": "tsc && node dist/main.js",
-    "format": "prettier --write \"src/**/*.ts\"",
+    "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\"",
     "typecheck": "tsc --noEmit",
-    "test": "node -e \"require('fs').rmSync('dist-test',{recursive:true,force:true})\" && tsc -p tsconfig.test.json && node --test \"dist-test/**/*.test.js\"",
+    "test": "node -e \"require('fs').rmSync('dist-test',{recursive:true,force:true})\" && tsc -p tsconfig.test.json && node --test \"dist-test/**/*.test.js\" \"tests/*.test.ts\"",
     "prepare": "husky"
   },
   "engines": {
