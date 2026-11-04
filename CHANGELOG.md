@@ -1,3 +1,10 @@
+## [1.5.2](https://github.com/LevButkovskiy/scanup-node/compare/v1.5.1...v1.5.2) (2026-11-04)
+
+
+### Bug Fixes
+
+* **http-ping:** use probe timeout as the connect timeout ([#6](https://github.com/LevButkovskiy/scanup-node/issues/6)) ([c67006b](https://github.com/LevButkovskiy/scanup-node/commit/c67006b24496016edf228ab6c336f58d97fc3611))
+
 ## [1.5.1](https://github.com/LevButkovskiy/scanup-node/compare/v1.5.0...v1.5.1) (2026-10-23)
 
 
