@@ -45,6 +45,7 @@ function run(
   body: SubmitResultBody = doneBody,
   signal = new AbortController().signal,
   policy = fastPolicy,
+  onThrottled?: () => void,
 ) {
   const fake = fakeApi(steps);
   const outcome = submitResultWithRetry({
@@ -53,6 +54,7 @@ function run(
     body,
     signal,
     policy,
+    onThrottled,
   });
   return { ...fake, outcome };
 }
@@ -69,6 +71,21 @@ describe("submitResultWithRetry", () => {
     assert.equal(await outcome, "delivered");
     assert.equal(calls.length, 3);
     assert.ok(calls.every((body) => body.status === "done"));
+  });
+
+  it("reports every 429 through onThrottled and still retries", async () => {
+    let throttled = 0;
+    const { outcome } = run(
+      [httpError(429), httpError(429), httpError(502), "ok"],
+      doneBody,
+      new AbortController().signal,
+      fastPolicy,
+      () => {
+        throttled += 1;
+      },
+    );
+    assert.equal(await outcome, "delivered");
+    assert.equal(throttled, 2);
   });
 
   it("retries network errors and timeouts", async () => {

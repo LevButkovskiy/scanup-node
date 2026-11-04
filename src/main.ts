@@ -16,6 +16,9 @@ import { loadConfig, type NodeConfig } from "./config";
 import { errorMessage } from "./lib/error-message";
 import { log } from "./lib/log";
 import { sleep } from "./lib/sleep";
+import { MetricsReporter } from "./metrics/metrics-reporter";
+import { SystemSampler } from "./metrics/system-sampler";
+import { WorkerLoadTracker } from "./metrics/worker-load-tracker";
 import { readPackageVersion } from "./lib/version";
 import { submitResultWithRetry } from "./submit-result";
 
@@ -93,6 +96,7 @@ async function executeJob(
   api: ApiClient,
   job: DispatchedJob,
   shutdownSignal: AbortSignal,
+  tracker: WorkerLoadTracker,
 ): Promise<void> {
   let body: SubmitResultBody;
   try {
@@ -109,8 +113,13 @@ async function executeJob(
     jobId: job.jobId,
     body,
     signal: shutdownSignal,
+    onThrottled: () => tracker.throttled(),
   });
-  if (outcome !== "delivered") return;
+  if (outcome !== "delivered") {
+    tracker.gaveUp();
+    return;
+  }
+  tracker.delivered(body.status);
   log(
     body.status === "done"
       ? `job ${job.jobId}: done (${job.jobType})`
@@ -125,12 +134,21 @@ async function runWorker(
   isRunning: () => boolean,
   shutdownSignal: AbortSignal,
   stopRevoked: () => void,
+  tracker: WorkerLoadTracker,
 ): Promise<void> {
   while (isRunning()) {
     try {
       const job = await api.nextJob(config.jobWaitMs, shutdownSignal);
-      if (!job) continue; // long-poll вернулся пусто — сразу спрашиваем снова
-      await executeJob(api, job, shutdownSignal);
+      if (!job) {
+        tracker.idlePoll();
+        continue;
+      }
+      tracker.jobStarted();
+      try {
+        await executeJob(api, job, shutdownSignal, tracker);
+      } finally {
+        tracker.jobFinished();
+      }
     } catch (error) {
       if (error instanceof NodeTokenRejectedError) {
         stopRevoked();
@@ -196,12 +214,32 @@ async function main(): Promise<void> {
     void sendHeartbeat();
   }, config.heartbeatIntervalMs);
 
+  const tracker = new WorkerLoadTracker(config.jobConcurrency);
+  const metricsReporter = new MetricsReporter({
+    api,
+    tracker,
+    sampler: new SystemSampler(),
+    onTokenRejected: stopRevoked,
+  });
+  const metricsTimer = setInterval(() => {
+    void metricsReporter.report();
+  }, config.heartbeatIntervalMs);
+
   const workers = Array.from({ length: config.jobConcurrency }, (_, i) =>
-    runWorker(i, api, config, () => running, shutdown.signal, stopRevoked),
+    runWorker(
+      i,
+      api,
+      config,
+      () => running,
+      shutdown.signal,
+      stopRevoked,
+      tracker,
+    ),
   );
   await Promise.all(workers);
 
   clearInterval(heartbeatTimer);
+  clearInterval(metricsTimer);
 }
 
 main().catch((error: unknown) => {
