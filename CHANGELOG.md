@@ -1,3 +1,10 @@
+# [1.6.0](https://github.com/LevButkovskiy/scanup-node/compare/v1.5.2...v1.6.0) (2026-11-04)
+
+
+### Features
+
+* **tools:** add multi-node website availability check ([17cb0a7](https://github.com/LevButkovskiy/scanup-node/commit/17cb0a72143d861ff62d3736c50b2414baf1886f))
+
 ## [1.5.2](https://github.com/LevButkovskiy/scanup-node/compare/v1.5.1...v1.5.2) (2026-11-04)
 
 
