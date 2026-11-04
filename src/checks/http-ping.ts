@@ -1,3 +1,4 @@
+import { Agent, fetch, type RequestInit, type Response } from "undici";
 import { sleep } from "../lib/sleep";
 import type {
   HttpPingPayloadV1,
@@ -7,6 +8,21 @@ import type {
 const MAX_REDIRECTS = 5;
 const DNS_RETRY_DELAY_MS = 200;
 const TEMPORARY_DNS_FAILURE_CODE = "EAI_AGAIN";
+
+const dispatchersByTimeout = new Map<number, Agent>();
+
+function dispatcherFor(timeoutMs: number): Agent {
+  let dispatcher = dispatchersByTimeout.get(timeoutMs);
+  if (!dispatcher) {
+    dispatcher = new Agent({
+      connect: { timeout: timeoutMs },
+      headersTimeout: 0,
+      bodyTimeout: 0,
+    });
+    dispatchersByTimeout.set(timeoutMs, dispatcher);
+  }
+  return dispatcher;
+}
 
 function isTemporaryDnsFailure(error: unknown): boolean {
   return (
@@ -19,13 +35,15 @@ function isTemporaryDnsFailure(error: unknown): boolean {
 async function fetchWithDnsRetry(
   url: URL,
   init: RequestInit,
+  timeoutMs: number,
 ): Promise<Response> {
+  const requestInit = { ...init, dispatcher: dispatcherFor(timeoutMs) };
   try {
-    return await fetch(url, init);
+    return await fetch(url, requestInit);
   } catch (error) {
     if (!isTemporaryDnsFailure(error) || init.signal?.aborted) throw error;
     await sleep(DNS_RETRY_DELAY_MS);
-    return fetch(url, init);
+    return fetch(url, requestInit);
   }
 }
 
@@ -75,12 +93,16 @@ export async function runHttpPing(
   let redirectCount = 0;
 
   for (;;) {
-    response = await fetchWithDnsRetry(currentUrl, {
-      method: payload.method ?? "GET",
-      headers,
-      redirect: "manual",
-      signal,
-    });
+    response = await fetchWithDnsRetry(
+      currentUrl,
+      {
+        method: payload.method ?? "GET",
+        headers,
+        redirect: "manual",
+        signal,
+      },
+      payload.timeoutMs,
+    );
 
     const isRedirect = response.status >= 300 && response.status < 400;
     const location = response.headers.get("location");
