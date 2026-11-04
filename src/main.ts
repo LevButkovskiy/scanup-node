@@ -3,8 +3,10 @@ import {
   NodeTokenRejectedError,
   type DispatchedJob,
   type NodeCapability,
+  type NodeLocation,
 } from "./api-client";
 import { parseDnsLookupPayload, runDnsLookup } from "./checks/dns-lookup";
+import { parseHttpCheckPayload, runHttpCheck } from "./checks/http-check";
 import { parseHttpPingPayload, runHttpPing } from "./checks/http-ping";
 import { parsePingPayload, runPing } from "./checks/ping";
 import { parseSslCheckPayload, runSslCheck } from "./checks/ssl-check";
@@ -34,6 +36,12 @@ const TOOLS: readonly ToolDefinition[] = [
         responseTimeMs: result.responseTimeMs,
       };
     },
+  },
+  {
+    wireType: "http_check.v1",
+    capability: "http_check",
+    version: "v1",
+    run: (payload) => runHttpCheck(parseHttpCheckPayload(payload)),
   },
   {
     wireType: "dns.v1",
@@ -120,6 +128,11 @@ async function runWorker(
   }
 }
 
+function describeLocation(location: NodeLocation | null): string | null {
+  if (!location) return null;
+  return [location.city, location.countryCode].filter(Boolean).join(", ");
+}
+
 async function main(): Promise<void> {
   const config = loadConfig();
   const api = new ApiClient(config);
@@ -127,7 +140,9 @@ async function main(): Promise<void> {
 
   log(
     `scanup-node v${version} starting (concurrency: ${config.jobConcurrency})` +
-      (config.location ? ` — location: ${config.location}` : ""),
+      (describeLocation(config.location)
+        ? ` — location: ${describeLocation(config.location)}`
+        : ""),
   );
 
   let running = true;
@@ -148,7 +163,11 @@ async function main(): Promise<void> {
 
   const sendHeartbeat = async (): Promise<void> => {
     try {
-      await api.heartbeat({ version, capabilities: CAPABILITIES });
+      await api.heartbeat({
+        version,
+        capabilities: CAPABILITIES,
+        ...(config.location ? { location: config.location } : {}),
+      });
     } catch (error) {
       if (error instanceof NodeTokenRejectedError) {
         stopRevoked();

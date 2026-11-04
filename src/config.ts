@@ -1,7 +1,9 @@
+import type { NodeLocation } from "./api-client";
+
 export interface NodeConfig {
   apiUrl: string;
   nodeToken: string;
-  location: string | null;
+  location: NodeLocation | null;
   heartbeatIntervalMs: number;
   jobWaitMs: number;
   jobConcurrency: number;
@@ -15,6 +17,25 @@ function intFromEnv(name: string, fallback: number): number {
   if (raw === undefined || raw === "") return fallback;
   const parsed = Number(raw);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+const MAX_CITY_LENGTH = 64;
+const COUNTRY_CODE_PATTERN = /^[A-Z]{2}$/;
+
+function locationFromEnv(): NodeLocation | null {
+  const city = process.env.NODE_CITY?.trim().slice(0, MAX_CITY_LENGTH);
+  const rawCountryCode = process.env.NODE_COUNTRY_CODE?.trim();
+  const countryCode =
+    rawCountryCode && COUNTRY_CODE_PATTERN.test(rawCountryCode)
+      ? rawCountryCode
+      : undefined;
+  if (rawCountryCode && !countryCode) {
+    console.error(
+      "NODE_COUNTRY_CODE must be a two-letter uppercase ISO code — ignored",
+    );
+  }
+  if (!city && !countryCode) return null;
+  return { ...(city ? { city } : {}), ...(countryCode ? { countryCode } : {}) };
 }
 
 const DEFAULT_HEARTBEAT_INTERVAL_MS = 30_000; // лимит backend: 30/мин
@@ -32,7 +53,7 @@ export function loadConfig(): NodeConfig {
   return {
     apiUrl: apiUrl.replace(/\/+$/, ""),
     nodeToken,
-    location: process.env.NODE_LOCATION ?? null,
+    location: locationFromEnv(),
     heartbeatIntervalMs: intFromEnv(
       "HEARTBEAT_INTERVAL_MS",
       DEFAULT_HEARTBEAT_INTERVAL_MS,

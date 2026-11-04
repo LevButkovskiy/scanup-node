@@ -9,4 +9,5 @@ services:
     environment:
       SCANUP_API_URL: ${SCANUP_API_URL:-https://api.scanup.ru}
       SCANUP_NODE_TOKEN: ${SCANUP_NODE_TOKEN}
-      NODE_LOCATION: ${NODE_LOCATION:-}
+      NODE_CITY: ${NODE_CITY:-}
+      NODE_COUNTRY_CODE: ${NODE_COUNTRY_CODE:-}
