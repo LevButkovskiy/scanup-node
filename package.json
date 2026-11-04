@@ -11,8 +11,8 @@
     "dev": "tsc && node dist/main.js",
     "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\"",
     "typecheck": "tsc --noEmit",
-    "prepare": "husky",
-    "test": "node --test tests/*.test.ts"
+    "test": "node -e \"require('fs').rmSync('dist-test',{recursive:true,force:true})\" && tsc -p tsconfig.test.json && node --test \"dist-test/**/*.test.js\" \"tests/*.test.ts\"",
+    "prepare": "husky"
   },
   "engines": {
     "node": ">=24.22.1"

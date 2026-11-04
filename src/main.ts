@@ -4,6 +4,7 @@ import {
   type DispatchedJob,
   type NodeCapability,
   type NodeLocation,
+  type SubmitResultBody,
 } from "./api-client";
 import { parseDnsLookupPayload, runDnsLookup } from "./checks/dns-lookup";
 import { parseHttpCheckPayload, runHttpCheck } from "./checks/http-check";
@@ -16,6 +17,7 @@ import { errorMessage } from "./lib/error-message";
 import { log } from "./lib/log";
 import { sleep } from "./lib/sleep";
 import { readPackageVersion } from "./lib/version";
+import { submitResultWithRetry } from "./submit-result";
 
 interface ToolDefinition {
   wireType: string;
@@ -87,20 +89,33 @@ async function runJob(
   return tool.run(payload);
 }
 
-async function executeJob(api: ApiClient, job: DispatchedJob): Promise<void> {
+async function executeJob(
+  api: ApiClient,
+  job: DispatchedJob,
+  shutdownSignal: AbortSignal,
+): Promise<void> {
+  let body: SubmitResultBody;
   try {
     const result = (await runJob(job.jobType, job.payload)) as Record<
       string,
       unknown
     >;
-    await api.submitResult(job.jobId, { status: "done", result });
-    log(`job ${job.jobId}: done (${job.jobType})`);
+    body = { status: "done", result };
   } catch (error) {
-    if (error instanceof NodeTokenRejectedError) throw error;
-    const message = errorMessage(error);
-    await api.submitResult(job.jobId, { status: "failed", error: message });
-    log(`job ${job.jobId}: failed (${message})`);
+    body = { status: "failed", error: errorMessage(error) };
   }
+  const outcome = await submitResultWithRetry({
+    api,
+    jobId: job.jobId,
+    body,
+    signal: shutdownSignal,
+  });
+  if (outcome !== "delivered") return;
+  log(
+    body.status === "done"
+      ? `job ${job.jobId}: done (${job.jobType})`
+      : `job ${job.jobId}: failed (${body.error})`,
+  );
 }
 
 async function runWorker(
@@ -115,7 +130,7 @@ async function runWorker(
     try {
       const job = await api.nextJob(config.jobWaitMs, shutdownSignal);
       if (!job) continue; // long-poll вернулся пусто — сразу спрашиваем снова
-      await executeJob(api, job);
+      await executeJob(api, job, shutdownSignal);
     } catch (error) {
       if (error instanceof NodeTokenRejectedError) {
         stopRevoked();

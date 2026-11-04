@@ -41,6 +41,25 @@ export class NodeTokenRejectedError extends Error {
   }
 }
 
+export class ApiResponseError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly retryAfterMs?: number,
+  ) {
+    super(message);
+    this.name = "ApiResponseError";
+  }
+}
+
+export const SUBMIT_TIMEOUT_MS = 10_000;
+
+function parseRetryAfterMs(header: string | null): number | undefined {
+  if (header === null) return undefined;
+  const seconds = Number(header);
+  return Number.isFinite(seconds) && seconds >= 0 ? seconds * 1000 : undefined;
+}
+
 export class ApiClient {
   constructor(private readonly config: NodeConfig) {}
 
@@ -67,6 +86,7 @@ export class ApiClient {
       "POST",
       `/nodes/jobs/${encodeURIComponent(jobId)}/result`,
       body,
+      SUBMIT_TIMEOUT_MS,
     );
   }
 
@@ -92,7 +112,11 @@ export class ApiClient {
       throw new NodeTokenRejectedError();
     }
     if (!response.ok) {
-      throw new Error(`${method} ${path} failed: HTTP ${response.status}`);
+      throw new ApiResponseError(
+        `${method} ${path} failed: HTTP ${response.status}`,
+        response.status,
+        parseRetryAfterMs(response.headers.get("Retry-After-node")),
+      );
     }
     return (await response.json()) as T;
   }
