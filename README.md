@@ -96,7 +96,8 @@ services:
     environment:
       SCANUP_API_URL: ${SCANUP_API_URL:-https://api.scanup.ru}
       SCANUP_NODE_TOKEN: ${SCANUP_NODE_TOKEN}
-      NODE_LOCATION: ${NODE_LOCATION:-}
+      NODE_CITY: ${NODE_CITY:-}
+      NODE_COUNTRY_CODE: ${NODE_COUNTRY_CODE:-}
 ```
 
 Запуск и остановка:
@@ -106,6 +107,10 @@ docker compose up -d
 docker compose logs -f
 docker compose down
 ```
+
+Нода 1.6.0 и новее шлёт в heartbeat город и страну, поэтому обновлять ноды
+нужно после выкладки бэкенда с полем `location` в heartbeat: более старый
+бэкенд ответит на такой heartbeat 400.
 
 Обновление на новую версию образа:
 
@@ -135,11 +140,17 @@ docker run -e SCANUP_API_URL=... -e SCANUP_NODE_TOKEN=... scanup-node
 | ----------------------- | ----------- | -------------------------------------------------------------------- |
 | `SCANUP_API_URL`        | да          | Базовый URL API ScanUp, без завершающего слэша                       |
 | `SCANUP_NODE_TOKEN`     | да          | Токен ноды — выдаётся один раз при создании ноды в API               |
-| `NODE_LOCATION`         | нет         | Человекочитаемая метка локации (только для логов)                    |
+| `NODE_CITY`             | нет         | Город ноды (до 64 символов): пользователь видит его в проверках      |
+| `NODE_COUNTRY_CODE`     | нет         | Код страны ISO 3166-1 alpha-2 заглавными, например `RU`              |
 | `HEARTBEAT_INTERVAL_MS` | нет         | Интервал heartbeat, по умолчанию `30000`                             |
 | `JOB_WAIT_MS`           | нет         | Long-poll бюджет `GET /nodes/jobs/next`, по умолчанию `25000`        |
 | `JOB_CONCURRENCY`       | нет         | Число задач нода выполняет одновременно, по умолчанию `8`            |
 | `ERROR_BACKOFF_MS`      | нет         | Пауза после сетевой ошибки при опросе, по умолчанию `10000`          |
+
+Город и страна, заданные `NODE_CITY` и `NODE_COUNTRY_CODE`, нода сообщает при
+каждом heartbeat. Если переменные убрать, бэкенд оставит последнее
+сообщённое значение (`reported_city`): стереть его можно только заменой
+значения, а скрыть — правкой администратора в админке.
 
 `GET /nodes/jobs/next` — long-poll, а не короткий опрос: при пустой очереди
 воркер не долбит эндпоинт, а ждёт внутри одного запроса до `JOB_WAIT_MS`.

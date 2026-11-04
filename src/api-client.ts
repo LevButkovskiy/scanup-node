@@ -11,9 +11,15 @@ export interface NodeCapability {
   schemaVersions: string[];
 }
 
+export interface NodeLocation {
+  city?: string;
+  countryCode?: string;
+}
+
 export interface HeartbeatBody {
   version: string;
   capabilities: NodeCapability[];
+  location?: NodeLocation;
 }
 
 export interface DispatchedJob {
