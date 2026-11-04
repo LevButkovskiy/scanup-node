@@ -1,3 +1,10 @@
+## [1.6.1](https://github.com/LevButkovskiy/scanup-node/compare/v1.6.0...v1.6.1) (2026-11-04)
+
+
+### Bug Fixes
+
+* **node:** keep per-address causes in network error messages ([#7](https://github.com/LevButkovskiy/scanup-node/issues/7)) ([0b3d29f](https://github.com/LevButkovskiy/scanup-node/commit/0b3d29f6e17d7b20dee00914221efdf558c40e8c))
+
 # [1.6.0](https://github.com/LevButkovskiy/scanup-node/compare/v1.5.2...v1.6.0) (2026-11-04)
 
 
