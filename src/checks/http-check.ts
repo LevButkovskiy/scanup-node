@@ -13,9 +13,6 @@ import type {
   HttpHopResult,
 } from "../types/http-check.types";
 
-const MAX_REDIRECTS = 5;
-const DEFAULT_TIMEOUT_MS = 10_000;
-const MAX_URL_LENGTH = 2048;
 const BLOCKED_CODE = "EBLOCKED";
 const TOO_MANY_REDIRECTS_CODE = "TOO_MANY_REDIRECTS";
 const NODE_SIDE_ERROR_CODES = new Set([
@@ -29,8 +26,6 @@ const NODE_SIDE_ERROR_CODES = new Set([
   "ENOMEM",
   "EADDRNOTAVAIL",
 ]);
-const TLS_CODE_PATTERN =
-  /CERT|SELF_SIGNED|UNABLE_TO_VERIFY|ERR_TLS|ERR_SSL|EPROTO|HOSTNAME_MISMATCH/;
 const USER_AGENT = `ScanUpBot/${readPackageVersion()} (+https://scanup.ru/tools/check)`;
 
 function codedError(message: string, code: string): NodeJS.ErrnoException {
@@ -76,6 +71,24 @@ function roundedTimings(raw: Record<string, number>): HttpHopResult["timings"] {
   );
 }
 
+function recordConnectionMarks(
+  request: http.ClientRequest,
+  marks: Record<string, number>,
+  startedAt: number,
+): void {
+  request.on("socket", (socket) => {
+    socket.once("lookup", () => {
+      marks.dns = performance.now() - startedAt;
+    });
+    socket.once("connect", () => {
+      marks.connect = performance.now() - startedAt;
+    });
+    socket.once("secureConnect", () => {
+      marks.tls = performance.now() - startedAt;
+    });
+  });
+}
+
 function requestHop(url: URL, signal: AbortSignal): Promise<HttpHopResult> {
   return new Promise((resolve, reject) => {
     assertPublicHost(url);
@@ -102,17 +115,7 @@ function requestHop(url: URL, signal: AbortSignal): Promise<HttpHopResult> {
       },
     );
 
-    request.on("socket", (socket) => {
-      socket.once("lookup", () => {
-        marks.dns = performance.now() - startedAt;
-      });
-      socket.once("connect", () => {
-        marks.connect = performance.now() - startedAt;
-      });
-      socket.once("secureConnect", () => {
-        marks.tls = performance.now() - startedAt;
-      });
-    });
+    recordConnectionMarks(request, marks, startedAt);
     request.on("error", reject);
     request.end();
   });
@@ -122,7 +125,6 @@ function errorCode(error: unknown): string | null {
   const candidate = error as {
     code?: unknown;
     cause?: { code?: unknown };
-    name?: unknown;
   } | null;
   const code = candidate?.code ?? candidate?.cause?.code;
   return typeof code === "string" ? code : null;
@@ -137,12 +139,18 @@ function errorKind(error: unknown, code: string | null): HttpCheckErrorKind {
   if (code === "ECONNRESET" || code === "EPIPE") return "reset";
   if (code === "EHOSTUNREACH") return "unreachable";
   if (code === TOO_MANY_REDIRECTS_CODE) return "redirects";
-  if (code && TLS_CODE_PATTERN.test(code)) return "tls";
+  if (
+    code &&
+    /CERT|SELF_SIGNED|UNABLE_TO_VERIFY|ERR_TLS|ERR_SSL|EPROTO|HOSTNAME_MISMATCH/.test(
+      code,
+    )
+  ) {
+    return "tls";
+  }
   return "other";
 }
 
-function describeError(error: unknown): HttpCheckError {
-  const code = errorCode(error);
+function describeError(error: unknown, code: string | null): HttpCheckError {
   const message = error instanceof Error ? error.message : String(error);
   return { kind: errorKind(error, code), code, message };
 }
@@ -151,11 +159,7 @@ export function parseHttpCheckPayload(
   payload: Record<string, unknown>,
 ): HttpCheckPayloadV1 {
   const url = payload.url;
-  if (
-    typeof url !== "string" ||
-    url.length === 0 ||
-    url.length > MAX_URL_LENGTH
-  ) {
+  if (typeof url !== "string" || url.length === 0 || url.length > 2048) {
     throw new Error("http_check payload: url is missing or too long");
   }
 
@@ -164,14 +168,33 @@ export function parseHttpCheckPayload(
     throw new Error("http_check payload: url must be http or https");
   }
 
-  const timeoutMs =
-    typeof payload.timeoutMs === "number" &&
-    Number.isFinite(payload.timeoutMs) &&
-    payload.timeoutMs > 0
-      ? Math.min(payload.timeoutMs, DEFAULT_TIMEOUT_MS)
-      : DEFAULT_TIMEOUT_MS;
+  const { timeoutMs } = payload;
+  const hasValidTimeout =
+    typeof timeoutMs === "number" &&
+    Number.isFinite(timeoutMs) &&
+    timeoutMs > 0;
 
-  return { url, timeoutMs };
+  return {
+    url,
+    timeoutMs: hasValidTimeout ? Math.min(timeoutMs, 10_000) : 10_000,
+  };
+}
+
+function redirectLocationOf(hop: HttpHopResult): string | null {
+  const isRedirect = hop.statusCode >= 300 && hop.statusCode < 400;
+  return isRedirect ? hop.location : null;
+}
+
+function resolveRedirectUrl(location: string, from: URL): URL {
+  const target = new URL(location, from);
+  if (target.protocol !== "http:" && target.protocol !== "https:") {
+    throw codedError("Redirect to a non-http scheme", BLOCKED_CODE);
+  }
+  return target;
+}
+
+function elapsedMs(startedAt: number): number {
+  return Math.round(performance.now() - startedAt);
 }
 
 export async function runHttpCheck(
@@ -183,29 +206,24 @@ export async function runHttpCheck(
   let currentUrl = new URL(payload.url);
 
   try {
-    for (;;) {
+    while (true) {
       const hop = await requestHop(currentUrl, signal);
-      const isRedirect =
-        hop.statusCode >= 300 && hop.statusCode < 400 && hop.location;
-      if (!isRedirect) {
+      const location = redirectLocationOf(hop);
+      if (!location) {
         return {
           finalUrl: currentUrl.href,
           statusCode: hop.statusCode,
-          responseTimeMs: Math.round(performance.now() - startedAt),
+          responseTimeMs: elapsedMs(startedAt),
           redirects,
           timings: hop.timings,
         };
       }
 
       redirects.push({ url: currentUrl.href, statusCode: hop.statusCode });
-      if (redirects.length > MAX_REDIRECTS) {
+      if (redirects.length > 5) {
         throw codedError("Too many redirects", TOO_MANY_REDIRECTS_CODE);
       }
-
-      currentUrl = new URL(hop.location as string, currentUrl);
-      if (currentUrl.protocol !== "http:" && currentUrl.protocol !== "https:") {
-        throw codedError("Redirect to a non-http scheme", BLOCKED_CODE);
-      }
+      currentUrl = resolveRedirectUrl(location, currentUrl);
     }
   } catch (error) {
     const code = errorCode(error);
@@ -213,9 +231,9 @@ export async function runHttpCheck(
     return {
       finalUrl: currentUrl.href,
       statusCode: null,
-      responseTimeMs: Math.round(performance.now() - startedAt),
+      responseTimeMs: elapsedMs(startedAt),
       redirects,
-      error: describeError(error),
+      error: describeError(error, code),
     };
   }
 }
