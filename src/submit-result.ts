@@ -31,6 +31,7 @@ export interface SubmitResultWithRetryOptions {
   body: SubmitResultBody;
   signal: AbortSignal;
   policy?: SubmitRetryPolicy;
+  onThrottled?: () => void;
 }
 
 const TOO_MANY_REQUESTS = 429;
@@ -71,7 +72,14 @@ function giveUp(
 export async function submitResultWithRetry(
   options: SubmitResultWithRetryOptions,
 ): Promise<SubmitOutcome> {
-  const { api, jobId, body, signal, policy = SUBMIT_RETRY_POLICY } = options;
+  const {
+    api,
+    jobId,
+    body,
+    signal,
+    policy = SUBMIT_RETRY_POLICY,
+    onThrottled,
+  } = options;
   const deadline = Date.now() + policy.windowMs;
 
   for (let attempt = 1; ; attempt++) {
@@ -80,6 +88,12 @@ export async function submitResultWithRetry(
       return "delivered";
     } catch (error) {
       if (error instanceof NodeTokenRejectedError) throw error;
+      if (
+        error instanceof ApiResponseError &&
+        error.status === TOO_MANY_REQUESTS
+      ) {
+        onThrottled?.();
+      }
       const message = errorMessage(error);
       const pauseMs = pauseBeforeRetry(attempt, error, policy);
       const canRetry =

@@ -1,4 +1,5 @@
 import type { NodeConfig } from "./config";
+import type { NodeMetricsBody } from "./types/node-metrics.types";
 
 // Протокол ноды (backend: NodesController, авторизация Bearer-токеном):
 //   POST /nodes/heartbeat
@@ -65,6 +66,10 @@ export class ApiClient {
 
   async heartbeat(body: HeartbeatBody): Promise<void> {
     await this.request("POST", "/nodes/heartbeat", body);
+  }
+
+  async sendMetrics(body: NodeMetricsBody): Promise<void> {
+    await this.request("POST", "/nodes/metrics", body);
   }
 
   async nextJob(
