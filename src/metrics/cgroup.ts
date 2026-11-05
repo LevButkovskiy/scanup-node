@@ -1,8 +1,6 @@
 import { readFileSync } from "node:fs";
 import type { CgroupReader, CpuStatSample } from "../types/node-metrics.types";
 
-const CGROUP_ROOT = "/sys/fs/cgroup";
-const SELF_CGROUP_FILE = "/proc/self/cgroup";
 const ROOT_PATH = "/";
 
 export type TextReader = (path: string) => string | null;
@@ -80,8 +78,8 @@ export function createCgroupReader(
   options: CgroupReaderOptions = {},
 ): CgroupReader {
   const {
-    root = CGROUP_ROOT,
-    selfCgroupFile = SELF_CGROUP_FILE,
+    root = "/sys/fs/cgroup",
+    selfCgroupFile = "/proc/self/cgroup",
     readText = readFileText,
   } = options;
   const path = parseCgroupPath(readText(selfCgroupFile));
