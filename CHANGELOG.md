@@ -1,3 +1,10 @@
+# [1.7.0](https://github.com/LevButkovskiy/scanup-node/compare/v1.6.2...v1.7.0) (2026-11-05)
+
+
+### Features
+
+* **nodes:** add node load metrics to admin nodes page ([67583bb](https://github.com/LevButkovskiy/scanup-node/commit/67583bb5f3d22eb4bb6991caa3bf6356c1e80a86))
+
 ## [1.6.2](https://github.com/LevButkovskiy/scanup-node/compare/v1.6.1...v1.6.2) (2026-11-04)
 
 
