@@ -6,6 +6,10 @@ function ipv4FromParts(high: number, low: number): string {
   return [high >> 8, high & 0xff, low >> 8, low & 0xff].join(".");
 }
 
+function isIpv4Compatible(address: ipaddr.IPv6): boolean {
+  return address.parts.slice(0, 6).every((part) => part === 0);
+}
+
 function embeddedIpv4Addresses(address: ipaddr.IPv6): string[] {
   const part = (index: number): number => address.parts[index] ?? 0;
   switch (address.range()) {
@@ -36,6 +40,7 @@ export function isPrivateIp(ip: string): boolean {
   const address = ipaddr.process(ip);
   if (address.kind() === "ipv6") {
     const v6 = address as ipaddr.IPv6;
+    if (isIpv4Compatible(v6)) return true;
     const range = v6.range();
     if (range === "unicast") return false;
     const embedded = embeddedIpv4Addresses(v6);
