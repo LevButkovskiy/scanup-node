@@ -8,6 +8,7 @@ export interface NodeConfig {
   jobWaitMs: number;
   jobConcurrency: number;
   errorBackoffMs: number;
+  allowPrivateTargets: boolean;
 }
 
 // Number('') = 0, Number('abc') = NaN — оба значения разрушили бы интервалы,
@@ -61,5 +62,6 @@ export function loadConfig(): NodeConfig {
     jobWaitMs: intFromEnv("JOB_WAIT_MS", DEFAULT_JOB_WAIT_MS),
     jobConcurrency: intFromEnv("JOB_CONCURRENCY", DEFAULT_JOB_CONCURRENCY),
     errorBackoffMs: intFromEnv("ERROR_BACKOFF_MS", DEFAULT_ERROR_BACKOFF_MS),
+    allowPrivateTargets: process.env.ALLOW_PRIVATE_TARGETS === "true",
   };
 }

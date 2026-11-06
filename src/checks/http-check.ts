@@ -1,8 +1,11 @@
-import dns from "node:dns";
 import http from "node:http";
 import https from "node:https";
-import net from "node:net";
-import { isPrivateIp } from "../lib/is-private-ip";
+import {
+  assertPublicHost,
+  BLOCKED_CODE,
+  codedError,
+  guardedLookup,
+} from "../lib/public-address-guard";
 import { readPackageVersion } from "../lib/version";
 import type {
   HttpCheckError,
@@ -13,7 +16,6 @@ import type {
   HttpHopResult,
 } from "../types/http-check.types";
 
-const BLOCKED_CODE = "EBLOCKED";
 const TOO_MANY_REDIRECTS_CODE = "TOO_MANY_REDIRECTS";
 const NODE_SIDE_ERROR_CODES = new Set([
   "EAI_AGAIN",
@@ -27,43 +29,6 @@ const NODE_SIDE_ERROR_CODES = new Set([
   "EADDRNOTAVAIL",
 ]);
 const USER_AGENT = `ScanUpBot/${readPackageVersion()} (+https://scanup.ru/tools/check)`;
-
-function codedError(message: string, code: string): NodeJS.ErrnoException {
-  const error: NodeJS.ErrnoException = new Error(message);
-  error.code = code;
-  return error;
-}
-
-function guardedLookup(
-  hostname: string,
-  options: dns.LookupOptions,
-  callback: (
-    error: NodeJS.ErrnoException | null,
-    address: string | dns.LookupAddress[],
-    family?: number,
-  ) => void,
-): void {
-  dns.lookup(hostname, options, (error, address, family) => {
-    if (error) return callback(error, address);
-    const addresses: string[] = Array.isArray(address)
-      ? address.map((entry) => entry.address)
-      : [address];
-    if (addresses.some(isPrivateIp)) {
-      return callback(
-        codedError(`${hostname} resolves to a private address`, BLOCKED_CODE),
-        address,
-      );
-    }
-    callback(null, address, family);
-  });
-}
-
-function assertPublicHost(url: URL): void {
-  const host = url.hostname.replace(/^\[|\]$/g, "");
-  if (net.isIP(host) !== 0 && isPrivateIp(host)) {
-    throw codedError("Private address is not allowed", BLOCKED_CODE);
-  }
-}
 
 function roundedTimings(raw: Record<string, number>): HttpHopResult["timings"] {
   return Object.fromEntries(
