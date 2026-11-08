@@ -10,15 +10,18 @@ function isNameNotFound(error: unknown): boolean {
   return typeof code === "string" && NAME_NOT_FOUND_CODES.has(code);
 }
 
-export async function resolvePublicIpv4(host: string): Promise<string> {
-  let ip: string;
+export async function resolvePingTarget(host: string): Promise<string> {
   try {
-    ip = await resolveIpv4(host);
+    return await resolveIpv4(host);
   } catch (error) {
     const message = `Cannot resolve ${host} to an IPv4 address`;
     if (isNameNotFound(error)) throw new PingTargetError(message);
     throw new Error(message, { cause: error });
   }
+}
+
+export async function resolvePublicIpv4(host: string): Promise<string> {
+  const ip = await resolvePingTarget(host);
   if (isPrivateIp(ip)) {
     throw new PingTargetError("Ping to private IP addresses is not allowed");
   }

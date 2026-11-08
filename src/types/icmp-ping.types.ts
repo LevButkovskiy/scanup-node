@@ -10,6 +10,10 @@ export interface IcmpPingPayloadV1 {
   packets: number;
 }
 
+export interface IcmpPingRunOptions {
+  allowPrivateTargets: boolean;
+}
+
 export interface IcmpPingResultV1 {
   ip: string;
   packetsSent: number;

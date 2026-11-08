@@ -1,13 +1,20 @@
 import assert from "node:assert/strict";
 import dnsPromises from "node:dns/promises";
 import { afterEach, describe, it, mock } from "node:test";
-import type { PingProbe, PingResponse } from "../types/icmp-ping.types";
+import type {
+  IcmpPingRunOptions,
+  PingProbe,
+  PingResponse,
+} from "../types/icmp-ping.types";
 import {
   isIcmpPingAvailable,
   parseIcmpPingPayload,
   runIcmpPing,
   toIcmpPingResult,
 } from "./icmp-ping";
+
+const BLOCK_PRIVATE: IcmpPingRunOptions = { allowPrivateTargets: false };
+const ALLOW_PRIVATE: IcmpPingRunOptions = { allowPrivateTargets: true };
 
 function response(overrides: Partial<PingResponse>): PingResponse {
   return {
@@ -124,6 +131,7 @@ describe("runIcmpPing", () => {
     );
     const result = await runIcmpPing(
       { host: "1.1.1.1", timeoutMs: 4_500, packets: 3 },
+      BLOCK_PRIVATE,
       probe,
     );
     assert.equal((result as { packetsReceived: number }).packetsReceived, 3);
@@ -133,20 +141,14 @@ describe("runIcmpPing", () => {
     ]);
   });
 
-  it("reports a private address as a target error without pinging", async () => {
-    const { probe, calls } = fakeProbe(response({}));
-    const result = await runIcmpPing(
-      { host: "10.0.0.1", timeoutMs: 10_000, packets: 3 },
-      probe,
-    );
-    assert.match((result as { error: string }).error, /private IP/);
-    assert.equal(calls.length, 0);
-  });
-
   it("fails when the ping binary cannot be started", async () => {
     const { probe } = fakeProbe(new Error("spawn ping ENOENT"));
     await assert.rejects(
-      runIcmpPing({ host: "1.1.1.1", timeoutMs: 10_000, packets: 3 }, probe),
+      runIcmpPing(
+        { host: "1.1.1.1", timeoutMs: 10_000, packets: 3 },
+        BLOCK_PRIVATE,
+        probe,
+      ),
       /ENOENT/,
     );
   });
@@ -159,8 +161,63 @@ describe("runIcmpPing", () => {
       }),
     );
     await assert.rejects(
-      runIcmpPing({ host: "1.1.1.1", timeoutMs: 10_000, packets: 3 }, probe),
+      runIcmpPing(
+        { host: "1.1.1.1", timeoutMs: 10_000, packets: 3 },
+        BLOCK_PRIVATE,
+        probe,
+      ),
       /ping exec failed/,
+    );
+  });
+});
+
+describe("runIcmpPing private targets", () => {
+  afterEach(() => mock.restoreAll());
+
+  for (const host of ["127.0.0.1", "10.0.0.1", "::1"]) {
+    it(`blocks ${host} before sending packets`, async () => {
+      const { probe, calls } = fakeProbe(response({}));
+      const result = await runIcmpPing(
+        { host, timeoutMs: 10_000, packets: 3 },
+        BLOCK_PRIVATE,
+        probe,
+      );
+      assert.deepEqual(result, { error: "Private address is not allowed" });
+      assert.equal(calls.length, 0);
+    });
+  }
+
+  it("blocks a name that resolves to a private address", async () => {
+    mock.method(dnsPromises, "resolve4", async () => ["192.168.1.10"]);
+    const { probe, calls } = fakeProbe(response({}));
+    const result = await runIcmpPing(
+      { host: "router.example.com", timeoutMs: 10_000, packets: 3 },
+      BLOCK_PRIVATE,
+      probe,
+    );
+    assert.deepEqual(result, { error: "Private address is not allowed" });
+    assert.equal(calls.length, 0);
+  });
+
+  it("pings private addresses when the node allows private targets", async () => {
+    mock.method(dnsPromises, "resolve4", async () => ["192.168.1.10"]);
+    const { probe, calls } = fakeProbe(
+      response({ output: "3 packets transmitted, 3 received, 0% packet loss" }),
+    );
+    await runIcmpPing(
+      { host: "10.0.0.1", timeoutMs: 10_000, packets: 3 },
+      ALLOW_PRIVATE,
+      probe,
+    );
+    const result = await runIcmpPing(
+      { host: "router.example.com", timeoutMs: 10_000, packets: 3 },
+      ALLOW_PRIVATE,
+      probe,
+    );
+    assert.equal((result as { ip: string }).ip, "192.168.1.10");
+    assert.deepEqual(
+      calls.map(([target]) => target),
+      ["10.0.0.1", "192.168.1.10"],
     );
   });
 });
@@ -204,6 +261,7 @@ describe("runIcmpPing name resolution", () => {
       const { probe, calls } = fakeProbe(response({}));
       const result = await runIcmpPing(
         { host: "example.com", timeoutMs: 10_000, packets: 3 },
+        BLOCK_PRIVATE,
         probe,
       );
       assert.deepEqual(result, {
@@ -220,6 +278,7 @@ describe("runIcmpPing name resolution", () => {
       await assert.rejects(
         runIcmpPing(
           { host: "example.com", timeoutMs: 10_000, packets: 3 },
+          BLOCK_PRIVATE,
           probe,
         ),
         (error: Error) =>
@@ -237,6 +296,7 @@ describe("runIcmpPing name resolution", () => {
     );
     const result = await runIcmpPing(
       { host: "example.com", timeoutMs: 10_000, packets: 3 },
+      BLOCK_PRIVATE,
       probe,
     );
     assert.equal((result as { ip: string }).ip, "93.184.216.34");

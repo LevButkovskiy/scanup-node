@@ -9,3 +9,7 @@ export interface HttpPingResult {
   statusCode: number;
   responseTimeMs: number;
 }
+
+export interface HttpPingRunOptions {
+  allowPrivateTargets: boolean;
+}

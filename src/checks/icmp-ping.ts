@@ -1,14 +1,17 @@
 import { promise as ping } from "ping";
+import { isPrivateIp } from "../lib/is-private-ip";
+import { PRIVATE_ADDRESS_MESSAGE } from "../lib/public-address-guard";
 import {
   finiteNumberOrUndefined,
   isPingExecFailure,
   PingTargetError,
-  resolvePublicIpv4,
+  resolvePingTarget,
 } from "../lib/system-ping";
 import type {
   IcmpPingOutcomeV1,
   IcmpPingPayloadV1,
   IcmpPingResultV1,
+  IcmpPingRunOptions,
   PingProbe,
   PingResponse,
 } from "../types/icmp-ping.types";
@@ -80,13 +83,25 @@ export function toIcmpPingResult(
   };
 }
 
+async function resolveMonitorTarget(
+  host: string,
+  { allowPrivateTargets }: IcmpPingRunOptions,
+): Promise<string> {
+  const ip = await resolvePingTarget(host);
+  if (!allowPrivateTargets && isPrivateIp(ip)) {
+    throw new PingTargetError(PRIVATE_ADDRESS_MESSAGE);
+  }
+  return ip;
+}
+
 export async function runIcmpPing(
   payload: IcmpPingPayloadV1,
+  options: IcmpPingRunOptions,
   probe: PingProbe = ping.probe,
 ): Promise<IcmpPingOutcomeV1> {
   let ip: string;
   try {
-    ip = await resolvePublicIpv4(payload.host);
+    ip = await resolveMonitorTarget(payload.host, options);
   } catch (error) {
     if (error instanceof PingTargetError) return { error: error.message };
     throw error;

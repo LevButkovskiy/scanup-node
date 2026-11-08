@@ -26,12 +26,19 @@ import { SystemSampler } from "./metrics/system-sampler";
 import { WorkerLoadTracker } from "./metrics/worker-load-tracker";
 import { readPackageVersion } from "./lib/version";
 import { submitResultWithRetry } from "./submit-result";
+import type { HttpPingRunOptions } from "./types/http-ping.types";
+import type { IcmpPingRunOptions } from "./types/icmp-ping.types";
+
+type ToolRunOptions = HttpPingRunOptions & IcmpPingRunOptions;
 
 interface ToolDefinition {
   wireType: string;
   capability: string;
   version: string;
-  run: (payload: Record<string, unknown>) => Promise<unknown>;
+  run: (
+    payload: Record<string, unknown>,
+    options: ToolRunOptions,
+  ) => Promise<unknown>;
 }
 
 const TOOLS: readonly ToolDefinition[] = [
@@ -39,8 +46,10 @@ const TOOLS: readonly ToolDefinition[] = [
     wireType: "http_ping",
     capability: "http_ping",
     version: "v1",
-    run: async (payload) => {
-      const result = await runHttpPing(parseHttpPingPayload(payload));
+    run: async (payload, { allowPrivateTargets }) => {
+      const result = await runHttpPing(parseHttpPingPayload(payload), {
+        allowPrivateTargets,
+      });
       return {
         statusCode: result.statusCode,
         responseTimeMs: result.responseTimeMs,
@@ -51,7 +60,8 @@ const TOOLS: readonly ToolDefinition[] = [
     wireType: "icmp_ping",
     capability: "icmp_ping",
     version: "v1",
-    run: (payload) => runIcmpPing(parseIcmpPingPayload(payload)),
+    run: (payload, { allowPrivateTargets }) =>
+      runIcmpPing(parseIcmpPingPayload(payload), { allowPrivateTargets }),
   },
   {
     wireType: "http_check.v1",
@@ -105,12 +115,13 @@ const TOOLS_BY_WIRE_TYPE = new Map(TOOLS.map((tool) => [tool.wireType, tool]));
 async function runJob(
   jobType: string,
   payload: Record<string, unknown>,
+  options: ToolRunOptions,
 ): Promise<unknown> {
   const tool = TOOLS_BY_WIRE_TYPE.get(jobType);
   if (!tool) {
     throw new Error(`Unsupported jobType: ${jobType}`);
   }
-  return tool.run(payload);
+  return tool.run(payload, options);
 }
 
 async function executeJob(
@@ -118,10 +129,11 @@ async function executeJob(
   job: DispatchedJob,
   shutdownSignal: AbortSignal,
   tracker: WorkerLoadTracker,
+  options: ToolRunOptions,
 ): Promise<void> {
   let body: SubmitResultBody;
   try {
-    const result = (await runJob(job.jobType, job.payload)) as Record<
+    const result = (await runJob(job.jobType, job.payload, options)) as Record<
       string,
       unknown
     >;
@@ -166,7 +178,9 @@ async function runWorker(
       }
       tracker.jobStarted();
       try {
-        await executeJob(api, job, shutdownSignal, tracker);
+        await executeJob(api, job, shutdownSignal, tracker, {
+          allowPrivateTargets: config.allowPrivateTargets,
+        });
       } finally {
         tracker.jobFinished();
       }
@@ -198,6 +212,12 @@ async function main(): Promise<void> {
         ? ` — location: ${describeLocation(config.location)}`
         : ""),
   );
+
+  if (config.allowPrivateTargets) {
+    log(
+      "WARN: ALLOW_PRIVATE_TARGETS=true — monitor checks (http_ping, icmp_ping) may reach private and internal addresses from this node",
+    );
+  }
 
   const capabilities = await detectCapabilities();
 
