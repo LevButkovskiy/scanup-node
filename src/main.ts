@@ -9,6 +9,11 @@ import {
 import { parseDnsLookupPayload, runDnsLookup } from "./checks/dns-lookup";
 import { parseHttpCheckPayload, runHttpCheck } from "./checks/http-check";
 import { parseHttpPingPayload, runHttpPing } from "./checks/http-ping";
+import {
+  isIcmpPingAvailable,
+  parseIcmpPingPayload,
+  runIcmpPing,
+} from "./checks/icmp-ping";
 import { parsePingPayload, runPing } from "./checks/ping";
 import { parseSslCheckPayload, runSslCheck } from "./checks/ssl-check";
 import { parseWhoisLookupPayload, runWhoisLookup } from "./checks/whois-lookup";
@@ -43,6 +48,12 @@ const TOOLS: readonly ToolDefinition[] = [
     },
   },
   {
+    wireType: "icmp_ping",
+    capability: "icmp_ping",
+    version: "v1",
+    run: (payload) => runIcmpPing(parseIcmpPingPayload(payload)),
+  },
+  {
     wireType: "http_check.v1",
     capability: "http_check",
     version: "v1",
@@ -74,10 +85,20 @@ const TOOLS: readonly ToolDefinition[] = [
   },
 ];
 
-const CAPABILITIES: NodeCapability[] = TOOLS.map((tool) => ({
-  type: tool.capability,
-  schemaVersions: [tool.version],
-}));
+async function detectCapabilities(): Promise<NodeCapability[]> {
+  const icmpPingAvailable = await isIcmpPingAvailable();
+  if (!icmpPingAvailable) {
+    log(
+      "ERROR: ping to 127.0.0.1 failed, icmp_ping capability is not announced — check ICMP permissions (net.ipv4.ping_group_range or CAP_NET_RAW)",
+    );
+  }
+  return TOOLS.filter(
+    (tool) => icmpPingAvailable || tool.capability !== "icmp_ping",
+  ).map((tool) => ({
+    type: tool.capability,
+    schemaVersions: [tool.version],
+  }));
+}
 
 const TOOLS_BY_WIRE_TYPE = new Map(TOOLS.map((tool) => [tool.wireType, tool]));
 
@@ -178,6 +199,8 @@ async function main(): Promise<void> {
         : ""),
   );
 
+  const capabilities = await detectCapabilities();
+
   let running = true;
   const shutdown = new AbortController();
   const stop = (): void => {
@@ -198,7 +221,7 @@ async function main(): Promise<void> {
     try {
       await api.heartbeat({
         version,
-        capabilities: CAPABILITIES,
+        capabilities,
         ...(config.location ? { location: config.location } : {}),
       });
     } catch (error) {
