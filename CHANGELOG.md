@@ -1,3 +1,10 @@
+## [1.8.1](https://github.com/LevButkovskiy/scanup-node/compare/v1.8.0...v1.8.1) (2026-11-08)
+
+
+### Bug Fixes
+
+* **monitors:** block monitor checks to private network addresses ([b148b76](https://github.com/LevButkovskiy/scanup-node/commit/b148b76dba4b976df59e89550aacbcff8f6c0459))
+
 # [1.8.0](https://github.com/LevButkovskiy/scanup-node/compare/v1.7.0...v1.8.0) (2026-11-08)
 
 
