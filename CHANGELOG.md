@@ -1,3 +1,10 @@
+# [1.8.0](https://github.com/LevButkovskiy/scanup-node/compare/v1.7.0...v1.8.0) (2026-11-08)
+
+
+### Features
+
+* **monitors:** add icmp ping monitor type ([5219882](https://github.com/LevButkovskiy/scanup-node/commit/5219882e3d95dc6568963ba29b9b433e62821d80))
+
 # [1.7.0](https://github.com/LevButkovskiy/scanup-node/compare/v1.6.2...v1.7.0) (2026-11-05)
 
 

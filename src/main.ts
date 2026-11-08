@@ -9,6 +9,11 @@ import {
 import { parseDnsLookupPayload, runDnsLookup } from "./checks/dns-lookup";
 import { parseHttpCheckPayload, runHttpCheck } from "./checks/http-check";
 import { parseHttpPingPayload, runHttpPing } from "./checks/http-ping";
+import {
+  isIcmpPingAvailable,
+  parseIcmpPingPayload,
+  runIcmpPing,
+} from "./checks/icmp-ping";
 import { parsePingPayload, runPing } from "./checks/ping";
 import { parseSslCheckPayload, runSslCheck } from "./checks/ssl-check";
 import { parseWhoisLookupPayload, runWhoisLookup } from "./checks/whois-lookup";
@@ -22,8 +27,9 @@ import { WorkerLoadTracker } from "./metrics/worker-load-tracker";
 import { readPackageVersion } from "./lib/version";
 import { submitResultWithRetry } from "./submit-result";
 import type { HttpPingRunOptions } from "./types/http-ping.types";
+import type { IcmpPingRunOptions } from "./types/icmp-ping.types";
 
-type ToolRunOptions = HttpPingRunOptions;
+type ToolRunOptions = HttpPingRunOptions & IcmpPingRunOptions;
 
 interface ToolDefinition {
   wireType: string;
@@ -49,6 +55,13 @@ const TOOLS: readonly ToolDefinition[] = [
         responseTimeMs: result.responseTimeMs,
       };
     },
+  },
+  {
+    wireType: "icmp_ping",
+    capability: "icmp_ping",
+    version: "v1",
+    run: (payload, { allowPrivateTargets }) =>
+      runIcmpPing(parseIcmpPingPayload(payload), { allowPrivateTargets }),
   },
   {
     wireType: "http_check.v1",
@@ -82,10 +95,20 @@ const TOOLS: readonly ToolDefinition[] = [
   },
 ];
 
-const CAPABILITIES: NodeCapability[] = TOOLS.map((tool) => ({
-  type: tool.capability,
-  schemaVersions: [tool.version],
-}));
+async function detectCapabilities(): Promise<NodeCapability[]> {
+  const icmpPingAvailable = await isIcmpPingAvailable();
+  if (!icmpPingAvailable) {
+    log(
+      "ERROR: ping to 127.0.0.1 failed, icmp_ping capability is not announced — check ICMP permissions (net.ipv4.ping_group_range or CAP_NET_RAW)",
+    );
+  }
+  return TOOLS.filter(
+    (tool) => icmpPingAvailable || tool.capability !== "icmp_ping",
+  ).map((tool) => ({
+    type: tool.capability,
+    schemaVersions: [tool.version],
+  }));
+}
 
 const TOOLS_BY_WIRE_TYPE = new Map(TOOLS.map((tool) => [tool.wireType, tool]));
 
@@ -192,9 +215,11 @@ async function main(): Promise<void> {
 
   if (config.allowPrivateTargets) {
     log(
-      "WARN: ALLOW_PRIVATE_TARGETS=true — monitor checks (http_ping) may reach private and internal addresses from this node",
+      "WARN: ALLOW_PRIVATE_TARGETS=true — monitor checks (http_ping, icmp_ping) may reach private and internal addresses from this node",
     );
   }
+
+  const capabilities = await detectCapabilities();
 
   let running = true;
   const shutdown = new AbortController();
@@ -216,7 +241,7 @@ async function main(): Promise<void> {
     try {
       await api.heartbeat({
         version,
-        capabilities: CAPABILITIES,
+        capabilities,
         ...(config.location ? { location: config.location } : {}),
       });
     } catch (error) {

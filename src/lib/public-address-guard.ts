@@ -13,8 +13,10 @@ export function codedError(
   return error;
 }
 
+export const PRIVATE_ADDRESS_MESSAGE = "Private address is not allowed";
+
 export function blockedAddressError(): NodeJS.ErrnoException {
-  return codedError("Private address is not allowed", BLOCKED_CODE);
+  return codedError(PRIVATE_ADDRESS_MESSAGE, BLOCKED_CODE);
 }
 
 export function guardedLookup(
