@@ -1,3 +1,10 @@
+# [1.9.0](https://github.com/LevButkovskiy/scanup-node/compare/v1.8.1...v1.9.0) (2026-11-12)
+
+
+### Features
+
+* **monitors:** check monitors from multiple regions with rechecks and degraded status ([#12](https://github.com/LevButkovskiy/scanup-node/issues/12)) ([3037284](https://github.com/LevButkovskiy/scanup-node/commit/30372846dcae017366cd457c3bfe98877d90a53f))
+
 ## [1.8.1](https://github.com/LevButkovskiy/scanup-node/compare/v1.8.0...v1.8.1) (2026-11-08)
 
 
