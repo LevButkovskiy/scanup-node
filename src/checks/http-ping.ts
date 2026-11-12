@@ -5,9 +5,17 @@ import {
   type RequestInit,
   type Response,
 } from "undici";
+import { errorMessage } from "../lib/error-message";
+import {
+  errorCode,
+  errorKind,
+  isNodeSideError,
+  TOO_MANY_REDIRECTS_CODE,
+} from "../lib/network-error";
 import {
   BLOCKED_CODE,
   blockedAddressError,
+  codedError,
   guardedLookup,
   isPrivateIpLiteral,
 } from "../lib/public-address-guard";
@@ -15,6 +23,7 @@ import { sleep } from "../lib/sleep";
 import type {
   HttpPingPayloadV1,
   HttpPingResult,
+  HttpPingResultV2,
   HttpPingRunOptions,
 } from "../types/http-ping.types";
 
@@ -165,7 +174,7 @@ export async function runHttpPing(
     await response.body?.cancel();
 
     if (redirectCount >= MAX_REDIRECTS) {
-      throw new Error("Too many redirects");
+      throw codedError("Too many redirects", TOO_MANY_REDIRECTS_CODE);
     }
     redirectCount++;
 
@@ -187,4 +196,26 @@ export async function runHttpPing(
   await response.body?.cancel();
 
   return { statusCode: response.status, responseTimeMs };
+}
+
+export async function runHttpPingV2(
+  payload: HttpPingPayloadV1,
+  options: HttpPingRunOptions,
+): Promise<HttpPingResultV2> {
+  const startedAt = performance.now();
+  try {
+    return await runHttpPing(payload, options);
+  } catch (error) {
+    if (isNodeSideError(error)) throw error;
+    const code = errorCode(error);
+    return {
+      statusCode: null,
+      responseTimeMs: Math.round(performance.now() - startedAt),
+      error: {
+        kind: errorKind(error, code),
+        code,
+        message: errorMessage(error),
+      },
+    };
+  }
 }

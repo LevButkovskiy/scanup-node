@@ -1,6 +1,12 @@
 import http from "node:http";
 import https from "node:https";
 import {
+  errorCode,
+  errorKind,
+  NODE_SIDE_ERROR_CODES,
+  TOO_MANY_REDIRECTS_CODE,
+} from "../lib/network-error";
+import {
   assertPublicHost,
   BLOCKED_CODE,
   codedError,
@@ -9,25 +15,12 @@ import {
 import { readPackageVersion } from "../lib/version";
 import type {
   HttpCheckError,
-  HttpCheckErrorKind,
   HttpCheckPayloadV1,
   HttpCheckRedirect,
   HttpCheckResult,
   HttpHopResult,
 } from "../types/http-check.types";
 
-const TOO_MANY_REDIRECTS_CODE = "TOO_MANY_REDIRECTS";
-const NODE_SIDE_ERROR_CODES = new Set([
-  "EAI_AGAIN",
-  "EAI_FAIL",
-  "ENETUNREACH",
-  "ENETDOWN",
-  "EMFILE",
-  "ENFILE",
-  "ENOBUFS",
-  "ENOMEM",
-  "EADDRNOTAVAIL",
-]);
 const USER_AGENT = `ScanUpBot/${readPackageVersion()} (+https://scanup.ru/tools/check)`;
 
 function roundedTimings(raw: Record<string, number>): HttpHopResult["timings"] {
@@ -84,35 +77,6 @@ function requestHop(url: URL, signal: AbortSignal): Promise<HttpHopResult> {
     request.on("error", reject);
     request.end();
   });
-}
-
-function errorCode(error: unknown): string | null {
-  const candidate = error as {
-    code?: unknown;
-    cause?: { code?: unknown };
-  } | null;
-  const code = candidate?.code ?? candidate?.cause?.code;
-  return typeof code === "string" ? code : null;
-}
-
-function errorKind(error: unknown, code: string | null): HttpCheckErrorKind {
-  const name = (error as { name?: unknown } | null)?.name;
-  if (name === "TimeoutError" || name === "AbortError") return "timeout";
-  if (code === BLOCKED_CODE) return "blocked";
-  if (code === "ENOTFOUND" || code === "ENODATA") return "dns";
-  if (code === "ECONNREFUSED") return "refused";
-  if (code === "ECONNRESET" || code === "EPIPE") return "reset";
-  if (code === "EHOSTUNREACH") return "unreachable";
-  if (code === TOO_MANY_REDIRECTS_CODE) return "redirects";
-  if (
-    code &&
-    /CERT|SELF_SIGNED|UNABLE_TO_VERIFY|ERR_TLS|ERR_SSL|EPROTO|HOSTNAME_MISMATCH/.test(
-      code,
-    )
-  ) {
-    return "tls";
-  }
-  return "other";
 }
 
 function describeError(error: unknown, code: string | null): HttpCheckError {

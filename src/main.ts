@@ -8,7 +8,11 @@ import {
 } from "./api-client";
 import { parseDnsLookupPayload, runDnsLookup } from "./checks/dns-lookup";
 import { parseHttpCheckPayload, runHttpCheck } from "./checks/http-check";
-import { parseHttpPingPayload, runHttpPing } from "./checks/http-ping";
+import {
+  parseHttpPingPayload,
+  runHttpPing,
+  runHttpPingV2,
+} from "./checks/http-ping";
 import {
   isIcmpPingAvailable,
   parseIcmpPingPayload,
@@ -26,15 +30,14 @@ import { SystemSampler } from "./metrics/system-sampler";
 import { WorkerLoadTracker } from "./metrics/worker-load-tracker";
 import { readPackageVersion } from "./lib/version";
 import { submitResultWithRetry } from "./submit-result";
+import { capabilitiesOf, type ToolCapabilitySource } from "./tool-capabilities";
 import type { HttpPingRunOptions } from "./types/http-ping.types";
 import type { IcmpPingRunOptions } from "./types/icmp-ping.types";
 
 type ToolRunOptions = HttpPingRunOptions & IcmpPingRunOptions;
 
-interface ToolDefinition {
+interface ToolDefinition extends ToolCapabilitySource {
   wireType: string;
-  capability: string;
-  version: string;
   run: (
     payload: Record<string, unknown>,
     options: ToolRunOptions,
@@ -55,6 +58,13 @@ const TOOLS: readonly ToolDefinition[] = [
         responseTimeMs: result.responseTimeMs,
       };
     },
+  },
+  {
+    wireType: "http_ping.v2",
+    capability: "http_ping",
+    version: "v2",
+    run: (payload, { allowPrivateTargets }) =>
+      runHttpPingV2(parseHttpPingPayload(payload), { allowPrivateTargets }),
   },
   {
     wireType: "icmp_ping",
@@ -102,12 +112,11 @@ async function detectCapabilities(): Promise<NodeCapability[]> {
       "ERROR: ping to 127.0.0.1 failed, icmp_ping capability is not announced — check ICMP permissions (net.ipv4.ping_group_range or CAP_NET_RAW)",
     );
   }
-  return TOOLS.filter(
-    (tool) => icmpPingAvailable || tool.capability !== "icmp_ping",
-  ).map((tool) => ({
-    type: tool.capability,
-    schemaVersions: [tool.version],
-  }));
+  return capabilitiesOf(
+    TOOLS.filter(
+      (tool) => icmpPingAvailable || tool.capability !== "icmp_ping",
+    ),
+  );
 }
 
 const TOOLS_BY_WIRE_TYPE = new Map(TOOLS.map((tool) => [tool.wireType, tool]));

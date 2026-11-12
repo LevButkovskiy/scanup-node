@@ -1,3 +1,5 @@
+import type { HttpCheckError } from "./http-check.types";
+
 export interface HttpPingPayloadV1 {
   url: string;
   method?: "GET" | "HEAD";
@@ -8,6 +10,12 @@ export interface HttpPingPayloadV1 {
 export interface HttpPingResult {
   statusCode: number;
   responseTimeMs: number;
+}
+
+export interface HttpPingResultV2 {
+  statusCode: number | null;
+  responseTimeMs: number;
+  error?: HttpCheckError;
 }
 
 export interface HttpPingRunOptions {
