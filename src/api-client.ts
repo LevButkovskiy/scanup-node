@@ -36,9 +36,16 @@ export interface SubmitResultBody {
 }
 
 export class NodeTokenRejectedError extends Error {
-  constructor() {
-    super("node token rejected (revoked or invalid)");
+  constructor(message = "node token rejected (revoked or invalid)") {
+    super(message);
     this.name = "NodeTokenRejectedError";
+  }
+}
+
+export class NodeRevokedError extends NodeTokenRejectedError {
+  constructor() {
+    super("node revoked by ScanUp admin");
+    this.name = "NodeRevokedError";
   }
 }
 
@@ -54,6 +61,17 @@ export class ApiResponseError extends Error {
 }
 
 export const SUBMIT_TIMEOUT_MS = 10_000;
+
+async function tokenRejectionOf(
+  response: Response,
+): Promise<NodeTokenRejectedError> {
+  const body = (await response.json().catch(() => null)) as {
+    code?: unknown;
+  } | null;
+  return body?.code === "NODE_REVOKED"
+    ? new NodeRevokedError()
+    : new NodeTokenRejectedError();
+}
 
 function parseRetryAfterMs(header: string | null): number | undefined {
   if (header === null) return undefined;
@@ -114,7 +132,7 @@ export class ApiClient {
     });
 
     if (response.status === 401) {
-      throw new NodeTokenRejectedError();
+      throw await tokenRejectionOf(response);
     }
     if (!response.ok) {
       throw new ApiResponseError(
