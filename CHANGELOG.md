@@ -1,3 +1,10 @@
+## [1.9.1](https://github.com/LevButkovskiy/scanup-node/compare/v1.9.0...v1.9.1) (2026-11-23)
+
+
+### Bug Fixes
+
+* **nodes:** stop revoked nodes via NODE_REVOKED and show last request in admin ([#13](https://github.com/LevButkovskiy/scanup-node/issues/13)) ([c0a2468](https://github.com/LevButkovskiy/scanup-node/commit/c0a24687c6e9f48a1d8736994001f8f497cdc2c6))
+
 # [1.9.0](https://github.com/LevButkovskiy/scanup-node/compare/v1.8.1...v1.9.0) (2026-11-12)
 
 
