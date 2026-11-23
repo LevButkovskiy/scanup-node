@@ -5,6 +5,7 @@ import { after, before, describe, it } from "node:test";
 import {
   ApiClient,
   ApiResponseError,
+  NodeRevokedError,
   NodeTokenRejectedError,
 } from "./api-client";
 import type { NodeConfig } from "./config";
@@ -74,6 +75,72 @@ describe("ApiClient.submitResult", () => {
       }),
       (error: unknown) =>
         error instanceof Error && !(error instanceof ApiResponseError),
+    );
+  });
+});
+
+describe("ApiClient on 401", () => {
+  const BODIES: Record<string, string> = {
+    "/revoked/nodes/heartbeat": JSON.stringify({
+      statusCode: 401,
+      code: "NODE_REVOKED",
+      message: "x",
+    }),
+    "/unknown/nodes/heartbeat": JSON.stringify({
+      statusCode: 401,
+      code: "UNAUTHORIZED",
+      message: "x",
+    }),
+    "/proxy/nodes/heartbeat": "<html>401</html>",
+  };
+  let server: Server;
+  let apiUrl: string;
+
+  before(async () => {
+    server = createServer((request, response) => {
+      response.statusCode = 401;
+      response.end(BODIES[request.url ?? ""] ?? "");
+    });
+    await new Promise<void>((resolve) =>
+      server.listen(0, "127.0.0.1", resolve),
+    );
+    apiUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  });
+
+  after(() => {
+    server.close();
+  });
+
+  const heartbeat = (prefix: string): Promise<void> =>
+    clientFor(`${apiUrl}/${prefix}`).heartbeat({
+      version: "1.10.0",
+      capabilities: [],
+    });
+
+  it("throws NodeRevokedError on NODE_REVOKED, still a rejected token", async () => {
+    await assert.rejects(
+      heartbeat("revoked"),
+      (error: unknown) =>
+        error instanceof NodeRevokedError &&
+        error instanceof NodeTokenRejectedError,
+    );
+  });
+
+  it("throws a plain NodeTokenRejectedError on UNAUTHORIZED", async () => {
+    await assert.rejects(
+      heartbeat("unknown"),
+      (error: unknown) =>
+        error instanceof NodeTokenRejectedError &&
+        !(error instanceof NodeRevokedError),
+    );
+  });
+
+  it("throws a plain NodeTokenRejectedError on a non-JSON body", async () => {
+    await assert.rejects(
+      heartbeat("proxy"),
+      (error: unknown) =>
+        error instanceof NodeTokenRejectedError &&
+        !(error instanceof NodeRevokedError),
     );
   });
 });

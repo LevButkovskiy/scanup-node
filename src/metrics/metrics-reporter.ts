@@ -11,7 +11,7 @@ export interface MetricsReporterOptions {
   api: Pick<ApiClient, "sendMetrics">;
   tracker: WorkerLoadTracker;
   sampler: Pick<SystemSampler, "sample">;
-  onTokenRejected: () => void;
+  onTokenRejected: (error: NodeTokenRejectedError) => void;
 }
 
 export class MetricsReporter {
@@ -30,7 +30,7 @@ export class MetricsReporter {
       this.loggedFailures.clear();
     } catch (error) {
       if (error instanceof NodeTokenRejectedError) {
-        onTokenRejected();
+        onTokenRejected(error);
         return;
       }
       this.logFailureOnce(error);

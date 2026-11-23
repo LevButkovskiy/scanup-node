@@ -1,5 +1,6 @@
 import {
   ApiClient,
+  NodeRevokedError,
   NodeTokenRejectedError,
   type DispatchedJob,
   type NodeCapability,
@@ -25,6 +26,7 @@ import { loadConfig, type NodeConfig } from "./config";
 import { errorMessage } from "./lib/error-message";
 import { log } from "./lib/log";
 import { sleep } from "./lib/sleep";
+import { waitForShutdown } from "./lib/wait-for-shutdown";
 import { MetricsReporter } from "./metrics/metrics-reporter";
 import { SystemSampler } from "./metrics/system-sampler";
 import { WorkerLoadTracker } from "./metrics/worker-load-tracker";
@@ -35,6 +37,10 @@ import type { HttpPingRunOptions } from "./types/http-ping.types";
 import type { IcmpPingRunOptions } from "./types/icmp-ping.types";
 
 type ToolRunOptions = HttpPingRunOptions & IcmpPingRunOptions;
+
+const REVOKED_REMINDER_INTERVAL_MS = 24 * 60 * 60 * 1000;
+const REVOKED_MESSAGE =
+  "node revoked by ScanUp admin — all work stopped, no more requests will be sent; stop this container (docker compose down)";
 
 interface ToolDefinition extends ToolCapabilitySource {
   wireType: string;
@@ -175,7 +181,7 @@ async function runWorker(
   config: NodeConfig,
   isRunning: () => boolean,
   shutdownSignal: AbortSignal,
-  stopRevoked: () => void,
+  onTokenRejected: (error: NodeTokenRejectedError) => void,
   tracker: WorkerLoadTracker,
 ): Promise<void> {
   while (isRunning()) {
@@ -195,7 +201,7 @@ async function runWorker(
       }
     } catch (error) {
       if (error instanceof NodeTokenRejectedError) {
-        stopRevoked();
+        onTokenRejected(error);
         return;
       }
       if (shutdownSignal.aborted) return; // штатное завершение оборвало long-poll
@@ -231,19 +237,33 @@ async function main(): Promise<void> {
   const capabilities = await detectCapabilities();
 
   let running = true;
-  const shutdown = new AbortController();
+  let tokenRejected = false;
+  let revoked = false;
+  let heartbeatTimer: NodeJS.Timeout | undefined;
+  let metricsTimer: NodeJS.Timeout | undefined;
+  const work = new AbortController();
+  const processShutdown = new AbortController();
+  const stopTimers = (): void => {
+    clearInterval(heartbeatTimer);
+    clearInterval(metricsTimer);
+  };
   const stop = (): void => {
     log("shutting down...");
     running = false;
-    shutdown.abort();
+    work.abort();
+    processShutdown.abort();
   };
   process.on("SIGINT", stop);
   process.on("SIGTERM", stop);
 
-  const stopRevoked = (): void => {
-    log("node token revoked — shutting down");
+  const onTokenRejected = (error: NodeTokenRejectedError): void => {
     running = false;
-    shutdown.abort();
+    work.abort();
+    stopTimers();
+    if (tokenRejected) return;
+    tokenRejected = true;
+    revoked = error instanceof NodeRevokedError;
+    log(revoked ? REVOKED_MESSAGE : "node token rejected — shutting down");
   };
 
   const sendHeartbeat = async (): Promise<void> => {
@@ -255,27 +275,29 @@ async function main(): Promise<void> {
       });
     } catch (error) {
       if (error instanceof NodeTokenRejectedError) {
-        stopRevoked();
+        onTokenRejected(error);
         return;
       }
       log(`heartbeat failed: ${errorMessage(error)}`);
     }
   };
   await sendHeartbeat();
-  const heartbeatTimer = setInterval(() => {
-    void sendHeartbeat();
-  }, config.heartbeatIntervalMs);
 
   const tracker = new WorkerLoadTracker(config.jobConcurrency);
   const metricsReporter = new MetricsReporter({
     api,
     tracker,
     sampler: new SystemSampler(),
-    onTokenRejected: stopRevoked,
+    onTokenRejected,
   });
-  const metricsTimer = setInterval(() => {
-    void metricsReporter.report();
-  }, config.heartbeatIntervalMs);
+  if (running) {
+    heartbeatTimer = setInterval(() => {
+      void sendHeartbeat();
+    }, config.heartbeatIntervalMs);
+    metricsTimer = setInterval(() => {
+      void metricsReporter.report();
+    }, config.heartbeatIntervalMs);
+  }
 
   const workers = Array.from({ length: config.jobConcurrency }, (_, i) =>
     runWorker(
@@ -283,15 +305,21 @@ async function main(): Promise<void> {
       api,
       config,
       () => running,
-      shutdown.signal,
-      stopRevoked,
+      work.signal,
+      onTokenRejected,
       tracker,
     ),
   );
   await Promise.all(workers);
+  stopTimers();
 
-  clearInterval(heartbeatTimer);
-  clearInterval(metricsTimer);
+  if (revoked) {
+    await waitForShutdown({
+      signal: processShutdown.signal,
+      remindEveryMs: REVOKED_REMINDER_INTERVAL_MS,
+      remind: () => log(REVOKED_MESSAGE),
+    });
+  }
 }
 
 main().catch((error: unknown) => {
