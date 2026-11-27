@@ -1,3 +1,10 @@
+## [1.9.2](https://github.com/LevButkovskiy/scanup-node/compare/v1.9.1...v1.9.2) (2026-11-27)
+
+
+### Bug Fixes
+
+* **api-client:** honor plain Retry-After on 429 and in poll backoff ([#14](https://github.com/LevButkovskiy/scanup-node/issues/14)) ([aeba5b5](https://github.com/LevButkovskiy/scanup-node/commit/aeba5b57660f62cdd1141312f30455ee88c676f0))
+
 ## [1.9.1](https://github.com/LevButkovskiy/scanup-node/compare/v1.9.0...v1.9.1) (2026-11-23)
 
 
