@@ -74,7 +74,7 @@ async function tokenRejectionOf(
 }
 
 function parseRetryAfterMs(header: string | null): number | undefined {
-  if (header === null) return undefined;
+  if (header === null || header.trim() === "") return undefined;
   const seconds = Number(header);
   return Number.isFinite(seconds) && seconds >= 0 ? seconds * 1000 : undefined;
 }
@@ -138,7 +138,8 @@ export class ApiClient {
       throw new ApiResponseError(
         `${method} ${path} failed: HTTP ${response.status}`,
         response.status,
-        parseRetryAfterMs(response.headers.get("Retry-After-node")),
+        parseRetryAfterMs(response.headers.get("Retry-After-node")) ??
+          parseRetryAfterMs(response.headers.get("Retry-After")),
       );
     }
     return (await response.json()) as T;

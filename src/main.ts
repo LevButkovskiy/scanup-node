@@ -25,6 +25,7 @@ import { parseWhoisLookupPayload, runWhoisLookup } from "./checks/whois-lookup";
 import { loadConfig, type NodeConfig } from "./config";
 import { errorMessage } from "./lib/error-message";
 import { log } from "./lib/log";
+import { retryDelayMs } from "./lib/retry-delay";
 import { sleep } from "./lib/sleep";
 import { waitForShutdown } from "./lib/wait-for-shutdown";
 import { MetricsReporter } from "./metrics/metrics-reporter";
@@ -206,7 +207,7 @@ async function runWorker(
       }
       if (shutdownSignal.aborted) return; // штатное завершение оборвало long-poll
       log(`worker ${workerId}: poll failed: ${errorMessage(error)}`);
-      await sleep(config.errorBackoffMs);
+      await sleep(retryDelayMs(error, config.errorBackoffMs), shutdownSignal);
     }
   }
 }

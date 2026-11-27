@@ -15,13 +15,24 @@ function clientFor(apiUrl: string): ApiClient {
 }
 
 describe("ApiClient.submitResult", () => {
+  const RETRY_AFTER_HEADERS: Record<string, Record<string, string>> = {
+    "429": { "Retry-After-node": "2" },
+    "429-plain": { "Retry-After": "30" },
+    "429-both": { "Retry-After-node": "2", "Retry-After": "30" },
+    "429-empty-node": { "Retry-After-node": "", "Retry-After": "30" },
+  };
   let server: Server;
   let apiUrl: string;
 
   before(async () => {
     server = createServer((request, response) => {
-      const status = Number(request.url?.split("/")[3]);
-      if (status === 429) response.setHeader("Retry-After-node", "2");
+      const jobId = request.url?.split("/")[3] ?? "";
+      const status = Number(jobId.split("-")[0]);
+      for (const [name, value] of Object.entries(
+        RETRY_AFTER_HEADERS[jobId] ?? {},
+      )) {
+        response.setHeader(name, value);
+      }
       response.statusCode = status;
       response.end("{}");
     });
@@ -59,6 +70,32 @@ describe("ApiClient.submitResult", () => {
         error instanceof ApiResponseError &&
         error.status === 429 &&
         error.retryAfterMs === 2000,
+    );
+  });
+
+  it("falls back to Retry-After on 429 without Retry-After-node", async () => {
+    await assert.rejects(
+      clientFor(apiUrl).submitResult("429-plain", { status: "done" }),
+      (error: unknown) =>
+        error instanceof ApiResponseError &&
+        error.status === 429 &&
+        error.retryAfterMs === 30_000,
+    );
+  });
+
+  it("prefers Retry-After-node over Retry-After on 429", async () => {
+    await assert.rejects(
+      clientFor(apiUrl).submitResult("429-both", { status: "done" }),
+      (error: unknown) =>
+        error instanceof ApiResponseError && error.retryAfterMs === 2000,
+    );
+  });
+
+  it("falls back to Retry-After when Retry-After-node is empty", async () => {
+    await assert.rejects(
+      clientFor(apiUrl).submitResult("429-empty-node", { status: "done" }),
+      (error: unknown) =>
+        error instanceof ApiResponseError && error.retryAfterMs === 30_000,
     );
   });
 

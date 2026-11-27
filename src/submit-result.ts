@@ -8,6 +8,7 @@ import {
 } from "./api-client";
 import { errorMessage } from "./lib/error-message";
 import { log } from "./lib/log";
+import { retryDelayMs } from "./lib/retry-delay";
 
 export interface SubmitRetryPolicy {
   windowMs: number;
@@ -49,13 +50,10 @@ function pauseBeforeRetry(
   error: unknown,
   policy: SubmitRetryPolicy,
 ): number {
-  const backoff = Math.min(
-    policy.baseDelayMs * 2 ** (failedAttempts - 1),
-    policy.maxDelayMs,
+  return retryDelayMs(
+    error,
+    Math.min(policy.baseDelayMs * 2 ** (failedAttempts - 1), policy.maxDelayMs),
   );
-  const retryAfterMs =
-    error instanceof ApiResponseError ? (error.retryAfterMs ?? 0) : 0;
-  return Math.max(backoff, retryAfterMs);
 }
 
 function giveUp(
