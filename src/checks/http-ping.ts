@@ -1,3 +1,4 @@
+import type { TLSSocket } from "node:tls";
 import {
   Agent,
   buildConnector,
@@ -20,44 +21,65 @@ import {
   isPrivateIpLiteral,
 } from "../lib/public-address-guard";
 import { sleep } from "../lib/sleep";
+import { toTlsCertificate } from "../lib/tls-certificate";
 import type {
   HttpPingPayloadV1,
   HttpPingResult,
   HttpPingResultV2,
-  HttpPingRunOptions,
+  HttpPingTestRunOptions,
+  HttpPingTlsCertificate,
 } from "../types/http-ping.types";
 
 const MAX_REDIRECTS = 5;
 const DNS_RETRY_DELAY_MS = 200;
 const TEMPORARY_DNS_FAILURE_CODE = "EAI_AGAIN";
 
-const dispatchers = new Map<string, Agent>();
+interface CertificateRecorder {
+  certificate?: HttpPingTlsCertificate;
+}
 
-function publicOnlyConnector(timeoutMs: number): buildConnector.connector {
-  const connect = buildConnector({ timeout: timeoutMs, lookup: guardedLookup });
+function recordingConnector(
+  connect: buildConnector.connector,
+  recorder: CertificateRecorder,
+  rejectPrivateLiterals: boolean,
+): buildConnector.connector {
   return (options, callback) => {
-    if (isPrivateIpLiteral(options.hostname)) {
+    if (rejectPrivateLiterals && isPrivateIpLiteral(options.hostname)) {
       callback(blockedAddressError(), null);
       return;
     }
-    connect(options, callback);
+    connect(options, (error, socket) => {
+      if (
+        !error &&
+        !recorder.certificate &&
+        socket &&
+        "getPeerCertificate" in socket
+      ) {
+        recorder.certificate = toTlsCertificate({
+          peer: (socket as TLSSocket).getPeerCertificate(),
+          host: options.servername ?? options.hostname,
+        });
+      }
+      callback(error as Error, socket as never);
+    });
   };
 }
 
-function dispatcherFor(timeoutMs: number, allowPrivateTargets: boolean): Agent {
-  const key = `${timeoutMs}:${allowPrivateTargets}`;
-  let dispatcher = dispatchers.get(key);
-  if (!dispatcher) {
-    dispatcher = new Agent({
-      connect: allowPrivateTargets
-        ? { timeout: timeoutMs }
-        : publicOnlyConnector(timeoutMs),
-      headersTimeout: 0,
-      bodyTimeout: 0,
-    });
-    dispatchers.set(key, dispatcher);
-  }
-  return dispatcher;
+function createAgent(
+  timeoutMs: number,
+  { allowPrivateTargets, tlsCa }: HttpPingTestRunOptions,
+  recorder: CertificateRecorder,
+): Agent {
+  const connect = buildConnector({
+    timeout: timeoutMs,
+    ca: tlsCa,
+    ...(allowPrivateTargets ? {} : { lookup: guardedLookup }),
+  });
+  return new Agent({
+    connect: recordingConnector(connect, recorder, !allowPrivateTargets),
+    headersTimeout: 0,
+    bodyTimeout: 0,
+  });
 }
 
 function isBlockedByGuard(error: unknown): boolean {
@@ -83,13 +105,9 @@ function isTemporaryDnsFailure(error: unknown): boolean {
 async function fetchWithDnsRetry(
   url: URL,
   init: RequestInit,
-  timeoutMs: number,
-  allowPrivateTargets: boolean,
+  dispatcher: Agent,
 ): Promise<Response> {
-  const requestInit = {
-    ...init,
-    dispatcher: dispatcherFor(timeoutMs, allowPrivateTargets),
-  };
+  const requestInit = { ...init, dispatcher };
   try {
     return await fetchOnce(url, requestInit);
   } catch (error) {
@@ -142,9 +160,9 @@ function parseHeaders(raw: unknown): Record<string, string> | undefined {
   }
   return Object.keys(headers).length > 0 ? headers : undefined;
 }
-export async function runHttpPing(
+async function executeHttpPing(
   payload: HttpPingPayloadV1,
-  { allowPrivateTargets }: HttpPingRunOptions,
+  dispatcher: Agent,
 ): Promise<HttpPingResult> {
   const startedAt = performance.now();
   const signal = AbortSignal.timeout(payload.timeoutMs);
@@ -163,8 +181,7 @@ export async function runHttpPing(
         redirect: "manual",
         signal,
       },
-      payload.timeoutMs,
-      allowPrivateTargets,
+      dispatcher,
     );
 
     const isRedirect = response.status >= 300 && response.status < 400;
@@ -198,13 +215,30 @@ export async function runHttpPing(
   return { statusCode: response.status, responseTimeMs };
 }
 
+export async function runHttpPing(
+  payload: HttpPingPayloadV1,
+  options: HttpPingTestRunOptions,
+): Promise<HttpPingResult> {
+  const agent = createAgent(payload.timeoutMs, options, {});
+  try {
+    return await executeHttpPing(payload, agent);
+  } finally {
+    await agent.destroy();
+  }
+}
+
 export async function runHttpPingV2(
   payload: HttpPingPayloadV1,
-  options: HttpPingRunOptions,
+  options: HttpPingTestRunOptions,
 ): Promise<HttpPingResultV2> {
   const startedAt = performance.now();
+  const recorder: CertificateRecorder = {};
+  const agent = createAgent(payload.timeoutMs, options, recorder);
   try {
-    return await runHttpPing(payload, options);
+    const result = await executeHttpPing(payload, agent);
+    return recorder.certificate
+      ? { ...result, tls: recorder.certificate }
+      : result;
   } catch (error) {
     if (isNodeSideError(error)) throw error;
     const code = errorCode(error);
@@ -216,6 +250,9 @@ export async function runHttpPingV2(
         code,
         message: errorMessage(error),
       },
+      ...(recorder.certificate ? { tls: recorder.certificate } : {}),
     };
+  } finally {
+    await agent.destroy();
   }
 }
